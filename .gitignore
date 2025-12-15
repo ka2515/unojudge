@@ -1,0 +1,6 @@
+﻿node_modules/
+.env
+
+# 運作資料（之後可外移）
+users.json
+submissions.json
