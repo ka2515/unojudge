@@ -1,0 +1,109 @@
+{
+  "users": [
+    {
+      "email": "admin@your.school",
+      "passwordHash": "$2b$10$vJWnz3D6Msp3UFh6BLIVze1L0dTdxn5FLE0L05R0rYMmY2I337lE2",
+      "role": "admin"
+    },
+    {
+      "email": "std01",
+      "passwordHash": "$2b$10$sB7231bkSCe4n5RJEhXL4uCR3SUWxlgmwlsP3UHYDxCpvN10XNdfy",
+      "role": "user"
+    },
+    {
+      "email": "std02",
+      "passwordHash": "$2b$10$cugqx9UC55HMMnpF.Seo5uYtLag2kkFtdGzVV6HVBVILugGVdiWEC",
+      "role": "user"
+    },
+    {
+      "email": "std03",
+      "passwordHash": "$2b$10$N5W10u/cujrlMcdRTMWZcuTYMSPBkVz1g.XVh0S.cMSuoLjiW3iVO",
+      "role": "user"
+    },
+    {
+      "email": "std04",
+      "passwordHash": "$2b$10$/vnadLQYLllTQwymkJsy0eWoSNTVin/WKGB8gZVFgOhA12OgqhMDm",
+      "role": "user"
+    },
+    {
+      "email": "std05",
+      "passwordHash": "$2b$10$RUn8vs4tG1nuw3TkNemk3e7rbZICPiKQdkxglGQbk25gqEOiS9lXa",
+      "role": "user"
+    },
+    {
+      "email": "std06",
+      "passwordHash": "$2b$10$VIE7z7Q02kLhXeB7kRMSN.CZ7F9xUuFa9QExgTFsqSIu4Eb2ShktS",
+      "role": "user"
+    },
+    {
+      "email": "std07",
+      "passwordHash": "$2b$10$Lkdytye9ImBwW0n9PH40nuM1dVenSaLjXDOPBmYdW50Bywhx89nXa",
+      "role": "user"
+    },
+    {
+      "email": "std08",
+      "passwordHash": "$2b$10$TL/niJRzidUT7u6ynHFKYOmIRlOP84p3P43PqHMaPm/lxjg8du7Cq",
+      "role": "user"
+    },
+    {
+      "email": "std09",
+      "passwordHash": "$2b$10$/eRlmHm0S8l2zOEt5qw5/Oovq7dyCww9fZX1QRo/A.s0cZsZsZw4i",
+      "role": "user"
+    },
+    {
+      "email": "std10",
+      "passwordHash": "$2b$10$jSHK0EY38MRqmwS2pY3bm.StPTJl/W9DTKKahQq9fYO1WFz52miXO",
+      "role": "user"
+    },
+    {
+      "email": "std11",
+      "passwordHash": "$2b$10$9CySwD5F8qdyTl9hdLbmnuQiXZ5XlORnYh9JLQz0Uzg76jN9soU4G",
+      "role": "user"
+    },
+    {
+      "email": "std12",
+      "passwordHash": "$2b$10$gXW9E2BHPjaKIjYfN3B7fOF5oBRbHZauLut21cmxan/62DcnE0CtK",
+      "role": "user"
+    },
+    {
+      "email": "std13",
+      "passwordHash": "$2b$10$22E3itarA4Yd8c1hQNXNkOTgLRDAJzT58bNGQihGSvZZrmSQRNzUC",
+      "role": "user"
+    },
+    {
+      "email": "std14",
+      "passwordHash": "$2b$10$dAWug6JtMby4wPYgdsx2m.htcZH3YDbptS7ddj6mFbAsGsTMQzbhK",
+      "role": "user"
+    },
+    {
+      "email": "std15",
+      "passwordHash": "$2b$10$ei52V9n1iqGe5cSkTTV2COhI2lo8Fh311GjgCPNPHc4S0C9BP5aA2",
+      "role": "user"
+    },
+    {
+      "email": "std16",
+      "passwordHash": "$2b$10$dJHZnUhdqvVtkKhyD59FW.v46KhtAujpsZAB3m/ENjPohMIhjTC66",
+      "role": "user"
+    },
+    {
+      "email": "std17",
+      "passwordHash": "$2b$10$VWynoHt83gMGfBmRpcHTBu8u7CuDZHcgPN544wW1bHP29P3hIfO/u",
+      "role": "user"
+    },
+    {
+      "email": "std18",
+      "passwordHash": "$2b$10$lfqTO5/Bt7hsI9tGQcYcJ.RCKp3o7l9b7EMr4SWPDoE0QS6Rfv/GW",
+      "role": "user"
+    },
+    {
+      "email": "std19",
+      "passwordHash": "$2b$10$sB7231bkSCe4n5RJEhXL4uCR3SUWxlgmwlsP3UHYDxCpvN10XNdfy",
+      "role": "user"
+    },
+    {
+      "email": "std20",
+      "passwordHash": "$2b$10$MwvgWn7IDOOHlgfqBqDXiekfX1ogLnOv0tL1Ud5jDWEBWKeTjiaU.",
+      "role": "user"
+    }
+  ]
+}

@@ -1,11 +1,21 @@
+// pi5 v1.0
 import fs from "node:fs";
 import vm from "node:vm";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
+//app.use(express.json({ limit: "1mb" }));
 
 // === CORS（本機用；上線後建議改成你的網域）===
 app.use((req, res, next) => {
@@ -61,7 +71,7 @@ function loadBank(filePath = "tests_bank.json") {
 const BANK = loadBank("tests_bank.json");
 
 // ===== 使用者 =====
-const USERS_PATH = "users.json";
+const USERS_PATH = path.join(__dirname,"users.json");
 function loadUsers() {
   const data = readJsonSafe(USERS_PATH, { users: [] });
   return Array.isArray(data.users) ? data.users : [];
@@ -155,6 +165,58 @@ app.get("/problems", (req, res) => {
   res.json({ problems: list });
 });
 
+// 登入 API：相容 email/username/account 三種欄位
+app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
+  try {
+    const account =
+      (req.body?.email ?? req.body?.username ?? req.body?.account ?? "").trim();
+    const password = req.body?.password ?? "";
+
+    if (!account || !password) {
+      return res.status(400).json({ ok: false, error: "missing_credentials" });
+    }
+
+    // 讀 users.json（你目前的格式是 { users: [...] }）
+    const data = readJsonSafe(USERS_PATH, { users: [] });
+    const users = Array.isArray(data.users) ? data.users : [];
+
+    // 用 email 或 username 比對（避免前端欄位差異）
+    const user = users.find(
+      (u) => u?.email === account || u?.username === account
+    );
+
+    if (!user) {
+      return res.status(401).json({ ok: false, error: "user_not_found" });
+    }
+
+    // 支援 passwordHash（bcrypt）
+    if (!user.passwordHash) {
+      return res.status(500).json({ ok: false, error: "missing_password_hash" });
+    }
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ ok: false, error: "wrong_password" });
+    }
+
+    // ✅ 先做到「能登入」：回傳最小資訊
+    return res.json({
+      ok: true,
+      role: user.role ?? "student",
+      email: user.email ?? null,
+      username: user.username ?? null,
+    });
+  } catch (err) {
+    console.error("login error:", err);
+    return res.status(500).json({ ok: false, error: "server_error" });
+  }
+});
+
+
+
+
+
+
 // 登入
 app.post("/auth/login", (req, res) => {
   const { email, password } = req.body || {};
@@ -173,7 +235,7 @@ app.post("/auth/login", (req, res) => {
 
 // 目前登入者
 app.get("/auth/me", authRequired, (req, res) => {
-  res.json({ email: req.user.email, role: req.user.role });
+  res.json({ email: req.user?.email ?? null, role: req.user?.role ?? "guest" });
 });
 
 // 使用者自行修改密碼：body { oldPassword, newPassword }
@@ -187,7 +249,9 @@ app.post("/auth/change-password", authRequired, (req, res) => {
   }
 
   const users = loadUsers();
-  const u = users.find(x => x.email === req.user.email);
+  const email = req.user?.email;
+  const u = email ? users.find(x => x.email === email) : null;
+
   if (!u) return res.status(404).json({ error: "user not found" });
 
   const ok = bcrypt.compareSync(oldPassword, u.passwordHash || "");
@@ -200,9 +264,9 @@ app.post("/auth/change-password", authRequired, (req, res) => {
 });
 
 // 個人成績摘要（右側用）
-app.get("/my/summary", authRequired, (req, res) => {
+app.get("/my/summary", (req, res) => {
   const subs = loadSubs();
-  const mine = subs[req.user.email] || {};
+  const mine = subs[req.user?.email ?? "__anonymous__"] || {};
   const problems = [...BANK.values()].map(p => {
     const r = mine[p.id];
     return {
@@ -216,7 +280,7 @@ app.get("/my/summary", authRequired, (req, res) => {
 });
 
 // 評分（需要登入）
-app.post("/grade", authRequired, (req, res) => {
+app.post("/grade", (req, res) => {
   const { code, problemId } = req.body || {};
   if (typeof code !== "string" || !code.trim()) return res.status(400).json({ error: "missing code" });
   if (typeof problemId !== "string" || !BANK.has(problemId)) return res.status(400).json({ error: "invalid problemId" });
@@ -247,26 +311,31 @@ app.post("/grade", authRequired, (req, res) => {
     }
   }
 
-  // 存：只存分數/耗時（不存作品）
-  const subs = loadSubs();
-  subs[req.user.email] = subs[req.user.email] || {};
-  subs[req.user.email][problemId] = {
-    pass,
-    total: TESTS.length,
-    totalMs: Math.round(totalMs * 1000) / 1000,
-    updatedAt: new Date().toISOString()
-  };
-  saveSubs(subs);
+// ★ 新增：即使沒登入也不要炸（考場模式可用）
+const email = (req.user && req.user.email) ? req.user.email : "__anonymous__";
 
-  res.json({
-    problemId,
-    problemName: problem.name,
-    pass,
-    total: TESTS.length,
-    totalMs: Math.round(totalMs * 1000) / 1000,
-    results
-  });
+// 存：只存分數/耗時（不存作品）
+const subs = loadSubs();
+subs[email] = subs[email] || {};
+subs[email][problemId] = {
+  pass,
+  total: TESTS.length,
+  totalMs: Math.round(totalMs * 1000) / 1000,
+  updatedAt: new Date().toISOString()
+};
+saveSubs(subs);
+
+res.json({
+  problemId,
+  problemName: problem.name,
+  pass,
+  total: TESTS.length,
+  timeMs: Math.round(totalMs * 1000) / 1000,  // ★ 給前端用
+  totalMs: Math.round(totalMs * 1000) / 1000, // ★ 保留舊欄位相容
+  results
 });
+});
+
 
 // ===== 管理者：使用者管理（你用）=====
 app.get("/admin/users", authRequired, adminRequired, (req, res) => {
@@ -330,7 +399,9 @@ app.get("/admin/overview", authRequired, adminRequired, (req, res) => {
   res.json({ overview });
 });
 
-app.get("/", (req, res) => res.type("text").send("OK"));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "upload_grade.html"));
+});
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
