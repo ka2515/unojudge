@@ -230,6 +230,14 @@ btnDoChangePwd.addEventListener("click", async () => {
     const JS = getJSGenerator();
     if (!JS) throw new Error("找不到 JavaScript generator");
     patchGenerators(JS);
+    
+    // ✅ 相容不同版本/客製 Blockly：text_length1 -> text_length
+    if (!Blockly.Blocks["text_length1"] && Blockly.Blocks["text_length"]) {
+      Blockly.Blocks["text_length1"] = Blockly.Blocks["text_length"];
+    }
+    if (JS && !JS["text_length1"] && JS["text_length"]) {
+      JS["text_length1"] = JS["text_length"];
+    }
 
     const workspace = new Blockly.Workspace();
 
