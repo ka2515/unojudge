@@ -230,7 +230,7 @@ btnDoChangePwd.addEventListener("click", async () => {
     const JS = getJSGenerator();
     if (!JS) throw new Error("找不到 JavaScript generator");
     patchGenerators(JS);
-    
+
     // ✅ 相容不同版本/客製 Blockly：text_length1 -> text_length
     if (!Blockly.Blocks["text_length1"] && Blockly.Blocks["text_length"]) {
       Blockly.Blocks["text_length1"] = Blockly.Blocks["text_length"];
@@ -324,6 +324,9 @@ btnDoChangePwd.addEventListener("click", async () => {
   // ===== grade =====
   async function gradeXml(xmlText) {
     showWait();
+
+    // ✅ 相容舊版 / 客製 Blockly：text_length1 → text_length
+    xmlText = xmlText.replaceAll('type="text_length1"', 'type="text_length"');
 
     const code = xmlToJS(xmlText);
     const problemId = problemSelect.value;
