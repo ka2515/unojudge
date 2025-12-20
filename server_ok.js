@@ -1,4 +1,7 @@
-// 計算方塊版
+// pi5 v1.2 (workstation canonical)
+// - unify auth (session-first, optional bearer token support)
+// - per-user submissions (no __anonymous__ sharing for logged-in users)
+// - queued + atomic writes for submissions.json
 
 import fs from "node:fs";
 import vm from "node:vm";
@@ -20,7 +23,6 @@ app.use(express.static(__dirname));
 // ===== 可調參數 =====
 const TIME_LIMIT_MS = 500;
 const OUTPUT_LIMIT = 20000;
-const STEP_LIMIT = 200000; // ★B版：預設步數上限
 const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_IN_CLOUD_RUN";
 
 // ===== Session（考場最穩：cookie 維持登入態）=====
@@ -112,9 +114,9 @@ function saveUsers(users) {
   writeJsonSafeAtomic(USERS_PATH, { users });
 }
 
-// ===== 作答紀錄（只存分數/步數，不存作品、不存耗時）=====
+// ===== 作答紀錄（只存分數/耗時，不存作品）=====
 const SUBMISSIONS_PATH = path.join(__dirname, "submissions.json");
-// 結構：{ "<email>": { "<problemId>": { pass, total, totalSteps, updatedAt } } }
+// 結構：{ "<email>": { "<problemId>": { pass, total, totalMs, updatedAt } } }
 function loadSubs() {
   return readJsonSafe(SUBMISSIONS_PATH, {});
 }
@@ -170,23 +172,14 @@ function makeLineReader(inputText) {
 
 function normOutput(s) {
   const x = s.replace(/\r\n/g, "\n");
-  return (
-    x
-      .split("\n")
-      .map((line) => line.replace(/\s+$/g, ""))
-      .join("\n")
-      .trim() + "\n"
-  );
+  return x
+    .split("\n")
+    .map((line) => line.replace(/\s+$/g, ""))
+    .join("\n")
+    .trim() + "\n";
 }
 
-/**
- * runUserJs:
- * - Keep vm timeout (TIME_LIMIT_MS) for safety
- * - Keep OUTPUT_LIMIT
- * - ★ Add step counter: injected __tick() is called by Blockly STATEMENT_PREFIX
- * Returns: { out, execSteps }
- */
-function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLimit = OUTPUT_LIMIT, stepLimit = STEP_LIMIT) {
+function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLimit = OUTPUT_LIMIT) {
   const readLine = makeLineReader(inputText);
   let out = "";
 
@@ -195,17 +188,9 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
     if (out.length > outputLimit) throw new Error("OutputLimitExceeded");
   }
 
-  // ★B版：步數計數器（閉包內，學生較難竄改）
-  let execSteps = 0;
-  function __tick() {
-    execSteps++;
-    if (execSteps > stepLimit) throw new Error("__EXEC_STEP_LIMIT__");
-  }
-
   const sandbox = {
     print,
     readLine,
-    __tick, // ★B版：插樁後的學生程式會呼叫
     console: { log: print },
     window: { alert: print, prompt: () => readLine() },
   };
@@ -214,8 +199,7 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
   const wrapped = `"use strict";\n${userJsCode}\n`;
   const script = new vm.Script(wrapped, { filename: "student.js" });
   script.runInContext(context, { timeout: timeLimitMs });
-
-  return { out, execSteps };
+  return out;
 }
 
 // ===== API =====
@@ -231,6 +215,7 @@ app.get("/problems", (req, res) => {
 });
 
 // ✅ 統一登入（同時支援 /login /api/login /auth/login）
+// 登入成功後：寫入 session，並回傳 token（可選）+ 基本資訊
 app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
   try {
     const account = (req.body?.email ?? req.body?.username ?? req.body?.account ?? "").trim();
@@ -249,8 +234,10 @@ app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ ok: false, error: "wrong_password" });
 
+    // ★ session：讓後續 /grade、/my/summary 都能拿到 req.user.email
     req.session.user = { email: user.email, role: user.role ?? "student" };
 
+    // ★ token：保留相容性（你未來要用 bearer 也能用）
     const token = signToken({ email: user.email, role: user.role ?? "student" });
 
     return res.json({
@@ -297,7 +284,7 @@ app.post("/auth/change-password", authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
-// 個人成績摘要（右側用）
+// 個人成績摘要（右側用）—— ★必須登入，避免全部落到 __anonymous__
 app.get("/my/summary", authRequired, (req, res) => {
   const subs = loadSubs();
   const mine = subs[req.user.email] || {};
@@ -313,7 +300,7 @@ app.get("/my/summary", authRequired, (req, res) => {
   res.json({ problems });
 });
 
-// 評分（必須登入）
+// 評分（必須登入；避免共用 __anonymous__）
 app.post("/grade", authRequired, async (req, res) => {
   const { code, problemId } = req.body || {};
   if (typeof code !== "string" || !code.trim()) return res.status(400).json({ error: "missing code" });
@@ -323,33 +310,37 @@ app.post("/grade", authRequired, async (req, res) => {
   const TESTS = problem.tests;
 
   let pass = 0;
-  let totalSteps = 0;
+  let totalMs = 0;
   const results = [];
 
   for (const t of TESTS) {
+    const t0 = process.hrtime.bigint();
     try {
-      const { out, execSteps } = runUserJs(code, t.input);
-      totalSteps += execSteps;
-
-      const ok = normOutput(out) === normOutput(t.expected);
+      const got = runUserJs(code, t.input);
+      const ok = normOutput(got) === normOutput(t.expected);
       if (ok) pass++;
 
-      // 回每 case 步數（教學更好；你若不想回可刪掉 execSteps）
-      results.push({ id: t.id, ok, execSteps });
+      const t1 = process.hrtime.bigint();
+      totalMs += Number(t1 - t0) / 1e6;
+
+      results.push({ id: t.id, ok });
     } catch (e) {
+      const t1 = process.hrtime.bigint();
+      totalMs += Number(t1 - t0) / 1e6;
+
       results.push({ id: t.id, ok: false, error: String(e?.message || e) });
     }
   }
 
   const email = req.user.email;
 
-  // 存：只存分數/步數（不存作品、不存耗時）
+  // 存：只存分數/耗時（不存作品）
   const subs = loadSubs();
   subs[email] = subs[email] || {};
   subs[email][problemId] = {
     pass,
     total: TESTS.length,
-    totalSteps,
+    totalMs: Math.round(totalMs * 1000) / 1000,
     updatedAt: new Date().toISOString(),
   };
 
@@ -360,7 +351,8 @@ app.post("/grade", authRequired, async (req, res) => {
     problemName: problem.name,
     pass,
     total: TESTS.length,
-    execSteps: totalSteps,
+    timeMs: Math.round(totalMs * 1000) / 1000,  // 前端顯示用
+    totalMs: Math.round(totalMs * 1000) / 1000, // 相容
     results,
   });
 });
@@ -412,7 +404,7 @@ app.get("/admin/overview", authRequired, adminRequired, (req, res) => {
   const countMap = {};
   const sumMap = {};
 
-  for (const [_email, m] of Object.entries(subs)) {
+  for (const [email, m] of Object.entries(subs)) {
     for (const [pid, r] of Object.entries(m || {})) {
       if (!overview[pid]) continue;
       countMap[pid] = (countMap[pid] || 0) + 1;
@@ -439,5 +431,4 @@ const port = process.env.PORT || 8080;
 app.listen(port, () => {
   console.log(`Grader server running: http://localhost:${port}`);
   console.log(`Loaded problems: ${BANK.size}`);
-  console.log(`TIME_LIMIT_MS=${TIME_LIMIT_MS} OUTPUT_LIMIT=${OUTPUT_LIMIT} STEP_LIMIT=${STEP_LIMIT}`);
 });

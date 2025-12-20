@@ -9,8 +9,8 @@ git push origin main
 
 
 
-遠端控制 pi5 >> 一鍵 git pull
-ssh pi5 "~/bin/update_judge.sh"
-
 本機控制 >> 一鍵 git push ("備註")
 gpush "test"
+
+遠端控制 pi5 >> 一鍵 git pull
+ssh pi5 "~/bin/update_judge.sh"

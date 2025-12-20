@@ -2,7 +2,7 @@
   "users": [
     {
       "email": "admin@your.school",
-      "passwordHash": "$2b$10$vJWnz3D6Msp3UFh6BLIVze1L0dTdxn5FLE0L05R0rYMmY2I337lE2",
+      "passwordHash": "$2b$10$xKUbGWEXlnq1VhSWaG70QOHJlg3LdSl2a5r9E0cQwe6/45c/idfBu",
       "role": "admin"
     },
     {
