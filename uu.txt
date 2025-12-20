@@ -1,5 +1,5 @@
-admin@your.school
-Admin@1234
+admin
+123456
 
 git status
 git add -A
