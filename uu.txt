@@ -1,2 +1,10 @@
 admin@your.school
 Admin@1234
+
+git status
+git add -A
+git commit -m "fix Answer"
+git push origin main
+
+一鍵更新
+ssh pi5 "~/bin/update_judge.sh"
