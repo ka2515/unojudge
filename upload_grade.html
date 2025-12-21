@@ -386,6 +386,7 @@
     const list = data?.problems || [];
     if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
 
+    // ★下拉一律用 tests_bank.json 的 name（server.js 已回 name）
     problemSelect.innerHTML = list
       .map(p => `<option value="${p.id}">${p.name}（${p.total} 測試）</option>`)
       .join("");
@@ -402,24 +403,34 @@
     return Math.floor((p / t) * 100);
   }
 
-  function colorClassByPct(pct) {
+  function colorClassByPct(pct, hasAnySubmit) {
+    // 未繳交：黑色（不加 class）
+    if (!hasAnySubmit) return "";
     if (pct >= 100) return "ok";
     if (pct >= 50) return "warn";
     return "bad";
   }
 
   function shortLabelFromName(name, fallbackId) {
+    // 右側顯示規則：盡量顯示 tests_bank.json 的 name
+    // 但若 name 是「第 X 區：Y-Z ...」就只取冒號後面當短標籤
     const s = String(name || "").trim();
     const idx = s.indexOf("：");
     if (idx >= 0) {
       const t = s.slice(idx + 1).trim();
       if (t) return t;
     }
-    return fallbackId || s || "題目";
+    return s || fallbackId || "題目";
   }
 
   function inferTrackClient(problemId) {
     // 前端保底：若後端沒回 track 也能跑（舊 server.js 也不會死）
+    // p01..p07 => zone1
+    // p08..p11 => zone2
+    // p12..p15 => zone3
+    // p16..p20 => zone4
+    // p21..p24 => zone5
+    // p25..     => weekend (先保底；建議你之後在 server.js 直接回 track)
     const m = String(problemId || "").match(/^p(\d{2})$/i);
     if (!m) return "misc";
     const n = parseInt(m[1], 10);
@@ -428,7 +439,7 @@
     if (n >= 12 && n <= 15) return "zone3";
     if (n >= 16 && n <= 20) return "zone4";
     if (n >= 21 && n <= 24) return "zone5";
-    return "zone5";
+    return "weekend";
   }
 
   function clearZones() {
@@ -466,25 +477,29 @@
       const track = String(p.track || "").trim() || inferTrackClient(p.id);
       if (!groups[track]) continue;
 
-      const pct = pctFloor(p.pass, p.total);
-      const cls = colorClassByPct(pct);
+      const pass = Number(p.pass ?? 0);
+      const total = Number(p.total ?? 0);
+      const hasAnySubmit = (total > 0) && (pass >= 0) && (typeof p.pass !== "undefined"); // 仍以 server 回傳為準
+
+      const pct = pctFloor(pass, total);
+      const cls = colorClassByPct(pct, true); // 目前 /my/summary 都會回 pass/total，視為「已存在紀錄」顯色
+
       const label = shortLabelFromName(p.name, p.id);
 
-      // 讓 1-1, 2-3, W-01…都有穩定排序
+      // 穩定排序：若 label 像 1-2/5-4/2-3 依數字排；否則用 id 排
       let order = 999999;
       const m1 = String(label).match(/(\d+)\s*-\s*(\d+)/);
       if (m1) order = parseInt(m1[1], 10) * 1000 + parseInt(m1[2], 10);
       else {
-        const m2 = String(label).match(/(\d+)/);
+        const m2 = String(p.id || "").match(/^p(\d{2})$/i);
         if (m2) order = parseInt(m2[1], 10);
       }
 
+      // ★右側顯示：一律顯示「短標籤（百分比）」；百分比無條件捨去
       groups[track].push({ order, html: `<li class="${cls}">${label} (${pct}%)</li>` });
     }
 
-    for (const k of Object.keys(groups)) {
-      groups[k].sort((a,b) => a.order - b.order);
-    }
+    for (const k of Object.keys(groups)) groups[k].sort((a,b) => a.order - b.order);
 
     zone1.innerHTML = groups.zone1.map(x => x.html).join("");
     zone2.innerHTML = groups.zone2.map(x => x.html).join("");
