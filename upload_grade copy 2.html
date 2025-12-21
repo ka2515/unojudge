@@ -20,7 +20,7 @@
 
     /* ✅ 放大 1.5 倍 */
     select, input[type="file"], button, input[type="email"], input[type="password"] {
-      font-size: 21px;
+      font-size: 21px; /* 約 14 * 1.5 */
       padding: 9px 10px;
     }
 
@@ -103,56 +103,37 @@
     <div style="font-weight:700; margin-bottom:8px;">我的題目進度</div>
     <div class="muted" id="sideInfo">（請先登入）</div>
 
-    <!-- ★依 track 分區（固定預留週末/縣賽/國賽） -->
-    <div class="zone">
-      <div class="zone-title">第 1 區</div>
-      <ul class="list" id="zone1"></ul>
-      <div class="zone-empty" id="zone1Empty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">第 2 區</div>
-      <ul class="list" id="zone2"></ul>
-      <div class="zone-empty" id="zone2Empty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">第 3 區</div>
-      <ul class="list" id="zone3"></ul>
-      <div class="zone-empty" id="zone3Empty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">第 4 區</div>
-      <ul class="list" id="zone4"></ul>
-      <div class="zone-empty" id="zone4Empty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">第 5 區</div>
-      <ul class="list" id="zone5"></ul>
-      <div class="zone-empty" id="zone5Empty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">週末區</div>
-      <ul class="list" id="weekend"></ul>
-      <div class="zone-empty" id="weekendEmpty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">縣賽區</div>
-      <ul class="list" id="county"></ul>
-      <div class="zone-empty" id="countyEmpty" style="display:none;">（尚無題目）</div>
-    </div>
-
-    <div class="zone">
-      <div class="zone-title">國賽區</div>
-      <ul class="list" id="national"></ul>
-      <div class="zone-empty" id="nationalEmpty" style="display:none;">（尚無題目）</div>
-    </div>
-  </div>
+    <!-- ★改版：用分區顯示 -->
+<div class="zone">
+  <div class="zone-title">第 1 區</div>
+  <ul class="list" id="zone1"></ul>
+  <div class="zone-empty" id="zone1Empty" style="display:none;">（尚無題目）</div>
 </div>
+
+<div class="zone">
+  <div class="zone-title">第 2 區</div>
+  <ul class="list" id="zone2"></ul>
+  <div class="zone-empty" id="zone2Empty" style="display:none;">（尚無題目）</div>
+</div>
+
+<div class="zone">
+  <div class="zone-title">第 3 區</div>
+  <ul class="list" id="zone3"></ul>
+  <div class="zone-empty" id="zone3Empty" style="display:none;">（尚無題目）</div>
+</div>
+
+<div class="zone">
+  <div class="zone-title">第 4 區</div>
+  <ul class="list" id="zone4"></ul>
+  <div class="zone-empty" id="zone4Empty" style="display:none;">（尚無題目）</div>
+</div>
+
+<div class="zone">
+  <div class="zone-title">第 5 區</div>
+  <ul class="list" id="zone5"></ul>
+  <div class="zone-empty" id="zone5Empty" style="display:none;">（尚無題目）</div>
+</div>
+
 
 <!-- Login Modal -->
 <div class="modal-bg" id="modalBg">
@@ -186,7 +167,6 @@
 
   const BASE_URL = "";
   //const BASE_URL = "https://m5-grader-588020858950.asia-east1.run.app";
-
   const problemSelect = document.getElementById("problemSelect");
   const fileInput = document.getElementById("fileInput");
   const scoreEl = document.getElementById("score");
@@ -196,41 +176,32 @@
   const btnLogin = document.getElementById("btnLogin");
   const btnChangePwd = document.getElementById("btnChangePwd");
   const btnLogout = document.getElementById("btnLogout");
-  const btnAdmin = document.getElementById("btnAdmin");
-
   const modalBg = document.getElementById("modalBg");
   const loginEmail = document.getElementById("loginEmail");
   const loginPwd = document.getElementById("loginPwd");
   const btnDoLogin = document.getElementById("btnDoLogin");
   const loginMsg = document.getElementById("loginMsg");
-
   const sideInfo = document.getElementById("sideInfo");
-
   const pwdModalBg = document.getElementById("pwdModalBg");
   const oldPwd = document.getElementById("oldPwd");
   const newPwd = document.getElementById("newPwd");
   const newPwd2 = document.getElementById("newPwd2");
   const btnDoChangePwd = document.getElementById("btnDoChangePwd");
   const pwdMsg = document.getElementById("pwdMsg");
+  const btnAdmin = document.getElementById("btnAdmin");
 
-  // ★右側分區 DOM
+  // ★右側改版 DOM
   const zone1 = document.getElementById("zone1");
   const zone2 = document.getElementById("zone2");
   const zone3 = document.getElementById("zone3");
   const zone4 = document.getElementById("zone4");
   const zone5 = document.getElementById("zone5");
-  const weekend = document.getElementById("weekend");
-  const county = document.getElementById("county");
-  const national = document.getElementById("national");
 
   const zone1Empty = document.getElementById("zone1Empty");
   const zone2Empty = document.getElementById("zone2Empty");
   const zone3Empty = document.getElementById("zone3Empty");
   const zone4Empty = document.getElementById("zone4Empty");
   const zone5Empty = document.getElementById("zone5Empty");
-  const weekendEmpty = document.getElementById("weekendEmpty");
-  const countyEmpty = document.getElementById("countyEmpty");
-  const nationalEmpty = document.getElementById("nationalEmpty");
 
   function openPwdModal() {
     pwdMsg.textContent = "";
@@ -240,18 +211,26 @@
     pwdModalBg.style.display = "flex";
     oldPwd.focus();
   }
-  function closePwdModal() { pwdModalBg.style.display = "none"; }
+
+  function closePwdModal() {
+    pwdModalBg.style.display = "none";
+  }
 
   function setAdminUI(role) {
-    btnAdmin.style.display = (role === "admin") ? "inline-block" : "none";
+    if (role === "admin") btnAdmin.style.display = "inline-block";
+    else btnAdmin.style.display = "none";
   }
 
   btnChangePwd.addEventListener("click", openPwdModal);
-  pwdModalBg.addEventListener("click", (e) => { if (e.target === pwdModalBg) closePwdModal(); });
+
+  pwdModalBg.addEventListener("click", (e) => {
+    if (e.target === pwdModalBg) closePwdModal();
+  });
 
   btnDoChangePwd.addEventListener("click", async () => {
     try {
       pwdMsg.textContent = "處理中…";
+
       const a = oldPwd.value;
       const b = newPwd.value;
       const c = newPwd2.value;
@@ -358,13 +337,11 @@
   function renderResult(data) {
     resultCard.style.display = "block";
     resultCard.className = (data.pass === data.total) ? "card ok" : "card bad";
-
+    // ★B版：不顯示使用時間，改顯示步數
     const stepText = (typeof data.execSteps === "number")
       ? ` <span class="muted">（步數：${data.execSteps}）</span>`
       : "";
-
     scoreEl.innerHTML = `成績：<b>${data.pass}/${data.total}</b>${stepText}`;
-
     const lines = (data.results || []).map(r => {
       if (r.ok) return `<li class="ok">Case ${r.id}: 正確</li>`;
       if (r.error?.includes("__EXEC_STEP_LIMIT__")) return `<li class="bad">Case ${r.id}: 步數超限</li>`;
@@ -372,7 +349,6 @@
       if (r.error?.includes("timed out")) return `<li class="bad">Case ${r.id}: 執行逾時</li>`;
       return `<li class="bad">Case ${r.id}: 錯誤</li>`;
     }).join("");
-
     detailsEl.innerHTML = `<ul>${lines}</ul>`;
   }
 
@@ -382,7 +358,7 @@
     fileInput.disabled = true;
 
     const resp = await fetch(`${BASE_URL}/problems`);
-    const data = await resp.json().catch(() => ({}));
+    const data = await resp.json();
     const list = data?.problems || [];
     if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
 
@@ -402,108 +378,87 @@
     return Math.floor((p / t) * 100);
   }
 
+  function idToZoneAndLabel(problemId) {
+    // 支援：p01..p99
+    const m = String(problemId || "").match(/^p(\d{2})$/i);
+    if (!m) return null;
+    const n = parseInt(m[1], 10);
+
+    // 第 1 區：1-1,1-2,1-3,1-6,1-7（依你現有題庫）
+    if (n >= 1 && n <= 3) return { zone: 1, label: `1-${n}` };
+    if (n === 6) return { zone: 1, label: "1-6" };
+    if (n === 7) return { zone: 1, label: "1-7" };
+
+    // 第 2 區：p08..p11 => 2-1..2-4
+    if (n >= 8 && n <= 11) return { zone: 2, label: `2-${n - 7}` };
+
+    // 第 3 區：p12..p15 => 3-1..3-4
+    if (n >= 12 && n <= 15) return { zone: 3, label: `3-${n - 11}` };
+
+    // 第 4 區：p16..p20 => 4-1..4-5
+    if (n >= 16 && n <= 20) return { zone: 4, label: `4-${n - 15}` };
+
+    // 第 5 區：p21.. => 5-1..（往後擴充照這個邏輯）
+    if (n >= 21) return { zone: 5, label: `5-${n - 20}` };
+
+    return null;
+  }
+
+
   function colorClassByPct(pct) {
     if (pct >= 100) return "ok";
     if (pct >= 50) return "warn";
     return "bad";
   }
 
-  function shortLabelFromName(name, fallbackId) {
-    const s = String(name || "").trim();
-    const idx = s.indexOf("：");
-    if (idx >= 0) {
-      const t = s.slice(idx + 1).trim();
-      if (t) return t;
-    }
-    return fallbackId || s || "題目";
-  }
-
-  function inferTrackClient(problemId) {
-    // 前端保底：若後端沒回 track 也能跑（舊 server.js 也不會死）
-    const m = String(problemId || "").match(/^p(\d{2})$/i);
-    if (!m) return "misc";
-    const n = parseInt(m[1], 10);
-    if (n >= 1 && n <= 7) return "zone1";
-    if (n >= 8 && n <= 11) return "zone2";
-    if (n >= 12 && n <= 15) return "zone3";
-    if (n >= 16 && n <= 20) return "zone4";
-    if (n >= 21 && n <= 24) return "zone5";
-    return "zone5";
-  }
-
-  function clearZones() {
-    zone1.innerHTML = ""; zone2.innerHTML = ""; zone3.innerHTML = ""; zone4.innerHTML = ""; zone5.innerHTML = "";
-    weekend.innerHTML = ""; county.innerHTML = ""; national.innerHTML = "";
-    zone1Empty.style.display = "none"; zone2Empty.style.display = "none"; zone3Empty.style.display = "none";
-    zone4Empty.style.display = "none"; zone5Empty.style.display = "none";
-    weekendEmpty.style.display = "none"; countyEmpty.style.display = "none"; nationalEmpty.style.display = "none";
-  }
-
   async function loadMySummary() {
     const resp = await api("/my/summary");
     if (!resp.ok) {
       sideInfo.textContent = "（請先登入）";
-      clearZones();
+      zone1.innerHTML = ""; zone2.innerHTML = ""; zone3.innerHTML = ""; zone4.innerHTML = ""; zone5.innerHTML = "";
+      zone1Empty.style.display = "none"; zone2Empty.style.display = "none"; zone3Empty.style.display = "none";
+      zone4Empty.style.display = "none"; zone5Empty.style.display = "none";
       return;
     }
 
-    const data = await resp.json().catch(() => ({}));
-    const problems = Array.isArray(data?.problems) ? data.problems : [];
+    const data = await resp.json();
+    const problems = data?.problems || [];
     sideInfo.textContent = `題目總數：${problems.length}`;
 
-    const groups = {
-      zone1: [],
-      zone2: [],
-      zone3: [],
-      zone4: [],
-      zone5: [],
-      weekend: [],
-      county: [],
-      national: []
-    };
+    const lists = { 1: [], 2: [], 3: [], 4: [], 5: [] };
 
     for (const p of problems) {
-      const track = String(p.track || "").trim() || inferTrackClient(p.id);
-      if (!groups[track]) continue;
+      const map = idToZoneAndLabel(p.id);
+      if (!map) continue;
 
-      const pct = pctFloor(p.pass, p.total);
-      const cls = colorClassByPct(pct);
-      const label = shortLabelFromName(p.name, p.id);
+      const pct = pctFloor(p.pass, p.total);     // 無條件捨去整數
+      const cls = colorClassByPct(pct);          // 100 綠 / 50-99 黃 / 0-49 紅
+      const order = parseInt(map.label.split("-")[1], 10);
 
-      // 讓 1-1, 2-3, W-01…都有穩定排序
-      let order = 999999;
-      const m1 = String(label).match(/(\d+)\s*-\s*(\d+)/);
-      if (m1) order = parseInt(m1[1], 10) * 1000 + parseInt(m1[2], 10);
-      else {
-        const m2 = String(label).match(/(\d+)/);
-        if (m2) order = parseInt(m2[1], 10);
-      }
-
-      groups[track].push({ order, html: `<li class="${cls}">${label} (${pct}%)</li>` });
+      lists[map.zone].push({
+        order,
+        html: `<li class="${cls}">${map.label} (${pct}%)</li>`
+      });
     }
 
-    for (const k of Object.keys(groups)) {
-      groups[k].sort((a,b) => a.order - b.order);
+    // 排序 & 渲染
+    for (const z of [1,2,3,4,5]) {
+      lists[z].sort((a,b) => a.order - b.order);
     }
 
-    zone1.innerHTML = groups.zone1.map(x => x.html).join("");
-    zone2.innerHTML = groups.zone2.map(x => x.html).join("");
-    zone3.innerHTML = groups.zone3.map(x => x.html).join("");
-    zone4.innerHTML = groups.zone4.map(x => x.html).join("");
-    zone5.innerHTML = groups.zone5.map(x => x.html).join("");
-    weekend.innerHTML = groups.weekend.map(x => x.html).join("");
-    county.innerHTML = groups.county.map(x => x.html).join("");
-    national.innerHTML = groups.national.map(x => x.html).join("");
+    zone1.innerHTML = lists[1].map(x => x.html).join("");
+    zone2.innerHTML = lists[2].map(x => x.html).join("");
+    zone3.innerHTML = lists[3].map(x => x.html).join("");
+    zone4.innerHTML = lists[4].map(x => x.html).join("");
+    zone5.innerHTML = lists[5].map(x => x.html).join("");
 
-    zone1Empty.style.display = groups.zone1.length ? "none" : "block";
-    zone2Empty.style.display = groups.zone2.length ? "none" : "block";
-    zone3Empty.style.display = groups.zone3.length ? "none" : "block";
-    zone4Empty.style.display = groups.zone4.length ? "none" : "block";
-    zone5Empty.style.display = groups.zone5.length ? "none" : "block";
-    weekendEmpty.style.display = groups.weekend.length ? "none" : "block";
-    countyEmpty.style.display = groups.county.length ? "none" : "block";
-    nationalEmpty.style.display = groups.national.length ? "none" : "block";
+    zone1Empty.style.display = lists[1].length ? "none" : "block";
+    zone2Empty.style.display = lists[2].length ? "none" : "block";
+    zone3Empty.style.display = lists[3].length ? "none" : "block";
+    zone4Empty.style.display = lists[4].length ? "none" : "block";
+    zone5Empty.style.display = lists[5].length ? "none" : "block";
   }
+
 
   // ===== grade =====
   async function gradeXml(xmlText) {
@@ -525,7 +480,7 @@
     if (!resp.ok) throw new Error(data?.error || "server error");
 
     renderResult(data);
-    await loadMySummary();
+    await loadMySummary(); // ✅ 評完立刻更新右側各題成績
   }
 
   // ===== login modal =====
@@ -534,35 +489,38 @@
     modalBg.style.display = "flex";
     loginEmail.focus();
   }
-  function closeLogin() { modalBg.style.display = "none"; }
+  function closeLogin() {
+    modalBg.style.display = "none";
+  }
 
   btnLogin.addEventListener("click", openLogin);
-  modalBg.addEventListener("click", (e) => { if (e.target === modalBg) closeLogin(); });
+  modalBg.addEventListener("click", (e) => {
+    if (e.target === modalBg) closeLogin();
+  });
 
-  btnAdmin.addEventListener("click", () => { window.open("/admin.html", "_blank"); });
+  btnAdmin.addEventListener("click", () => {
+    window.open("/admin.html", "_blank");
+  });
 
   btnDoLogin.addEventListener("click", async () => {
     loginMsg.textContent = "登入中…";
     try {
       const email = loginEmail.value.trim();
       const password = loginPwd.value;
-
       const resp = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data?.error || "登入失敗");
 
       setToken(data.token);
-      setGreeting(data);           // ★第一次登入就用 nickname/email 顯示
-      setAdminUI(data.role);
-
+      setGreeting(data);
       btnLogin.style.display = "none";
       btnChangePwd.style.display = "inline-block";
       btnLogout.style.display = "inline-block";
+      setAdminUI(data.role);
 
       closeLogin();
       await loadProblems();
@@ -576,18 +534,17 @@
     clearToken();
     meEl.textContent = "尚未登入";
     meEl.classList.add("muted");
-
     btnLogin.style.display = "inline-block";
     btnChangePwd.style.display = "none";
     btnLogout.style.display = "none";
     btnAdmin.style.display = "none";
-
     sideInfo.textContent = "（請先登入）";
-    clearZones();
-
+    zone1.innerHTML = "";
+    zone2.innerHTML = "";
+    zone1Empty.style.display = "none";
+    zone2Empty.style.display = "none";
     problemSelect.disabled = true;
     fileInput.disabled = true;
-
     showError("已登出");
   });
 
@@ -612,7 +569,7 @@
     if (token) {
       const r = await api("/auth/me");
       if (r.ok) {
-        const me = await r.json().catch(() => ({}));
+        const me = await r.json();
         setGreeting(me);
         btnLogin.style.display = "none";
         btnChangePwd.style.display = "inline-block";
@@ -626,12 +583,10 @@
         clearToken();
       }
     }
-
     // 未登入狀態
     problemSelect.disabled = true;
     fileInput.disabled = true;
     sideInfo.textContent = "（請先登入）";
-    clearZones();
   })();
 </script>
 

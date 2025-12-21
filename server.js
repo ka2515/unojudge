@@ -88,19 +88,37 @@ function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
     const tests = Array.isArray(p?.tests) ? p.tests : [];
     if (!id || tests.length === 0) continue;
 
+    const track = String(p?.track || "").trim() || inferTrackFromId(id);
+
     const normTests = tests.map((t, idx) => ({
       id: String(idx + 1).padStart(2, "0"),
       input: String(t?.in ?? ""),
       expected: String(t?.out ?? ""),
     }));
 
-    map.set(id, { id, name, tests: normTests });
+    map.set(id, { id, name, track, tests: normTests });
   }
   if (map.size === 0) throw new Error("No valid problems in tests_bank.json");
   return map;
 }
 
 const BANK = loadBank();
+
+function inferTrackFromId(problemId) {
+  const m = String(problemId || "").match(/^p(\d{2})$/i);
+  if (!m) return "misc";
+  const n = parseInt(m[1], 10);
+
+  if (n >= 1 && n <= 7) return "zone1";
+  if (n >= 8 && n <= 11) return "zone2";
+  if (n >= 12 && n <= 15) return "zone3";
+  if (n >= 16 && n <= 20) return "zone4";
+  if (n >= 21 && n <= 24) return "zone5";
+
+  // 未來擴充：你可自行決定後續 p25+ 要放哪裡
+  return "zone5";
+}
+
 
 // ===== 使用者 =====
 const USERS_PATH = path.join(__dirname, "users.json");
@@ -244,10 +262,11 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
 // 題目列表（給前端下拉）
 app.get("/problems", (req, res) => {
   const list = [...BANK.values()].map((p) => ({
-    id: p.id,
-    name: p.name,
-    total: p.tests.length,
-  }));
+  id: p.id,
+  track: p.track || inferTrackFromId(p.id),
+  name: p.name,
+  total: p.tests.length,
+}));
   res.json({ problems: list });
 });
 
@@ -357,6 +376,7 @@ app.get("/my/summary", authRequired, (req, res) => {
     const r = mine[p.id];
     return {
       id: p.id,
+      track: p.track || inferTrackFromId(p.id),
       name: p.name,
       total: p.tests.length,
       pass: r?.pass ?? 0,
