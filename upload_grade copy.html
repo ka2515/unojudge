@@ -28,7 +28,6 @@
     .score { font-size: 24px; margin-top: 14px; }
     .ok { color: #0a7; }
     .bad { color: #c22; }
-    .warn { color: #b58900; } /* ★黃字 */
     .hint { color: #444; font-size: 14px; margin-top: 8px; }
     .muted { color: #777; }
     .card { border-radius: 12px; padding: 14px; margin-top: 14px; }
@@ -40,11 +39,6 @@
     .pill { border:1px solid #ddd; border-radius:999px; padding:4px 10px; font-size:14px; }
     .list { margin:0; padding-left: 20px; }
     .list li { margin: 6px 0; }
-
-    /* ★右側分區外觀 */
-    .zone { border:1px solid #eee; border-radius:12px; padding:10px; margin-top:10px; }
-    .zone-title { font-weight:700; margin-bottom:6px; }
-    .zone-empty { color:#777; font-size: 14px; margin: 6px 0; }
 
     /* login modal */
     .modal-bg {
@@ -69,6 +63,7 @@
     <button id="btnChangePwd" style="display:none;">更改密碼</button>
     <button id="btnAdmin" style="display:none;">後台</button>
     <button id="btnLogout" style="display:none;">登出</button>
+
   </div>
 </div>
 
@@ -102,38 +97,9 @@
   <div class="side">
     <div style="font-weight:700; margin-bottom:8px;">我的題目進度</div>
     <div class="muted" id="sideInfo">（請先登入）</div>
-
-    <!-- ★改版：用分區顯示 -->
-<div class="zone">
-  <div class="zone-title">第 1 區</div>
-  <ul class="list" id="zone1"></ul>
-  <div class="zone-empty" id="zone1Empty" style="display:none;">（尚無題目）</div>
+    <ul class="list" id="sideList"></ul>
+  </div>
 </div>
-
-<div class="zone">
-  <div class="zone-title">第 2 區</div>
-  <ul class="list" id="zone2"></ul>
-  <div class="zone-empty" id="zone2Empty" style="display:none;">（尚無題目）</div>
-</div>
-
-<div class="zone">
-  <div class="zone-title">第 3 區</div>
-  <ul class="list" id="zone3"></ul>
-  <div class="zone-empty" id="zone3Empty" style="display:none;">（尚無題目）</div>
-</div>
-
-<div class="zone">
-  <div class="zone-title">第 4 區</div>
-  <ul class="list" id="zone4"></ul>
-  <div class="zone-empty" id="zone4Empty" style="display:none;">（尚無題目）</div>
-</div>
-
-<div class="zone">
-  <div class="zone-title">第 5 區</div>
-  <ul class="list" id="zone5"></ul>
-  <div class="zone-empty" id="zone5Empty" style="display:none;">（尚無題目）</div>
-</div>
-
 
 <!-- Login Modal -->
 <div class="modal-bg" id="modalBg">
@@ -182,6 +148,7 @@
   const btnDoLogin = document.getElementById("btnDoLogin");
   const loginMsg = document.getElementById("loginMsg");
   const sideInfo = document.getElementById("sideInfo");
+  const sideList = document.getElementById("sideList");
   const pwdModalBg = document.getElementById("pwdModalBg");
   const oldPwd = document.getElementById("oldPwd");
   const newPwd = document.getElementById("newPwd");
@@ -189,19 +156,6 @@
   const btnDoChangePwd = document.getElementById("btnDoChangePwd");
   const pwdMsg = document.getElementById("pwdMsg");
   const btnAdmin = document.getElementById("btnAdmin");
-
-  // ★右側改版 DOM
-  const zone1 = document.getElementById("zone1");
-  const zone2 = document.getElementById("zone2");
-  const zone3 = document.getElementById("zone3");
-  const zone4 = document.getElementById("zone4");
-  const zone5 = document.getElementById("zone5");
-
-  const zone1Empty = document.getElementById("zone1Empty");
-  const zone2Empty = document.getElementById("zone2Empty");
-  const zone3Empty = document.getElementById("zone3Empty");
-  const zone4Empty = document.getElementById("zone4Empty");
-  const zone5Empty = document.getElementById("zone5Empty");
 
   function openPwdModal() {
     pwdMsg.textContent = "";
@@ -220,6 +174,7 @@
     if (role === "admin") btnAdmin.style.display = "inline-block";
     else btnAdmin.style.display = "none";
   }
+
 
   btnChangePwd.addEventListener("click", openPwdModal);
 
@@ -315,10 +270,11 @@
   function setGreeting(me) {
     const nn = String(me?.nickname || "").trim();
     const email = String(me?.email || "").trim();
+    // 後台規則：nickname 優先，否則 email
     const who = nn || email || "使用者";
     meEl.textContent = `${who} 您好，繼續一起努力吧！`;
     meEl.classList.remove("muted");
-  }
+    }
 
   function showWait() {
     resultCard.style.display = "block";
@@ -362,6 +318,7 @@
     const list = data?.problems || [];
     if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
 
+    // ✅ 移除後方顯示 p01/p02：只顯示 name（以及測試數）
     problemSelect.innerHTML = list
       .map(p => `<option value="${p.id}">${p.name}（${p.total} 測試）</option>`)
       .join("");
@@ -371,94 +328,20 @@
   }
 
   // ===== summary (right side) =====
-  function pctFloor(pass, total) {
-    const p = Number(pass ?? 0);
-    const t = Number(total ?? 0);
-    if (!t) return 0;
-    return Math.floor((p / t) * 100);
-  }
-
-  function idToZoneAndLabel(problemId) {
-    // 支援：p01..p99
-    const m = String(problemId || "").match(/^p(\d{2})$/i);
-    if (!m) return null;
-    const n = parseInt(m[1], 10);
-
-    // 第 1 區：1-1,1-2,1-3,1-6,1-7（依你現有題庫）
-    if (n >= 1 && n <= 3) return { zone: 1, label: `1-${n}` };
-    if (n === 6) return { zone: 1, label: "1-6" };
-    if (n === 7) return { zone: 1, label: "1-7" };
-
-    // 第 2 區：p08..p11 => 2-1..2-4
-    if (n >= 8 && n <= 11) return { zone: 2, label: `2-${n - 7}` };
-
-    // 第 3 區：p12..p15 => 3-1..3-4
-    if (n >= 12 && n <= 15) return { zone: 3, label: `3-${n - 11}` };
-
-    // 第 4 區：p16..p20 => 4-1..4-5
-    if (n >= 16 && n <= 20) return { zone: 4, label: `4-${n - 15}` };
-
-    // 第 5 區：p21.. => 5-1..（往後擴充照這個邏輯）
-    if (n >= 21) return { zone: 5, label: `5-${n - 20}` };
-
-    return null;
-  }
-
-
-  function colorClassByPct(pct) {
-    if (pct >= 100) return "ok";
-    if (pct >= 50) return "warn";
-    return "bad";
-  }
-
   async function loadMySummary() {
     const resp = await api("/my/summary");
     if (!resp.ok) {
       sideInfo.textContent = "（請先登入）";
-      zone1.innerHTML = ""; zone2.innerHTML = ""; zone3.innerHTML = ""; zone4.innerHTML = ""; zone5.innerHTML = "";
-      zone1Empty.style.display = "none"; zone2Empty.style.display = "none"; zone3Empty.style.display = "none";
-      zone4Empty.style.display = "none"; zone5Empty.style.display = "none";
+      sideList.innerHTML = "";
       return;
     }
-
     const data = await resp.json();
     const problems = data?.problems || [];
     sideInfo.textContent = `題目總數：${problems.length}`;
-
-    const lists = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-
-    for (const p of problems) {
-      const map = idToZoneAndLabel(p.id);
-      if (!map) continue;
-
-      const pct = pctFloor(p.pass, p.total);     // 無條件捨去整數
-      const cls = colorClassByPct(pct);          // 100 綠 / 50-99 黃 / 0-49 紅
-      const order = parseInt(map.label.split("-")[1], 10);
-
-      lists[map.zone].push({
-        order,
-        html: `<li class="${cls}">${map.label} (${pct}%)</li>`
-      });
-    }
-
-    // 排序 & 渲染
-    for (const z of [1,2,3,4,5]) {
-      lists[z].sort((a,b) => a.order - b.order);
-    }
-
-    zone1.innerHTML = lists[1].map(x => x.html).join("");
-    zone2.innerHTML = lists[2].map(x => x.html).join("");
-    zone3.innerHTML = lists[3].map(x => x.html).join("");
-    zone4.innerHTML = lists[4].map(x => x.html).join("");
-    zone5.innerHTML = lists[5].map(x => x.html).join("");
-
-    zone1Empty.style.display = lists[1].length ? "none" : "block";
-    zone2Empty.style.display = lists[2].length ? "none" : "block";
-    zone3Empty.style.display = lists[3].length ? "none" : "block";
-    zone4Empty.style.display = lists[4].length ? "none" : "block";
-    zone5Empty.style.display = lists[5].length ? "none" : "block";
+    sideList.innerHTML = problems.map(p =>
+      `<li>${p.name}：<b>${p.pass}/${p.total}</b></li>`
+    ).join("");
   }
-
 
   // ===== grade =====
   async function gradeXml(xmlText) {
@@ -499,8 +382,9 @@
   });
 
   btnAdmin.addEventListener("click", () => {
-    window.open("/admin.html", "_blank");
+  window.open("/admin.html", "_blank");
   });
+
 
   btnDoLogin.addEventListener("click", async () => {
     loginMsg.textContent = "登入中…";
@@ -522,6 +406,7 @@
       btnLogout.style.display = "inline-block";
       setAdminUI(data.role);
 
+
       closeLogin();
       await loadProblems();
       await loadMySummary();
@@ -539,10 +424,7 @@
     btnLogout.style.display = "none";
     btnAdmin.style.display = "none";
     sideInfo.textContent = "（請先登入）";
-    zone1.innerHTML = "";
-    zone2.innerHTML = "";
-    zone1Empty.style.display = "none";
-    zone2Empty.style.display = "none";
+    sideList.innerHTML = "";
     problemSelect.disabled = true;
     fileInput.disabled = true;
     showError("已登出");
@@ -565,6 +447,7 @@
 
   // ===== startup =====
   (async () => {
+    // 若本機已有 token，嘗試顯示登入狀態
     const token = getToken();
     if (token) {
       const r = await api("/auth/me");
@@ -574,6 +457,7 @@
         btnLogin.style.display = "none";
         btnChangePwd.style.display = "inline-block";
         btnLogout.style.display = "inline-block";
+        btnChangePwd.style.display = "inline-block";
         setAdminUI(me.role);
 
         await loadProblems();

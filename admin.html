@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>管理後台 - 帳號管理</title>
+  <title>管理後台</title>
   <style>
     body { font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif; margin: 18px; }
     h2 { margin: 0 0 10px 0; }
@@ -12,10 +12,7 @@
     .muted { color:#666; }
     .ok { color:#0a7; }
     .bad { color:#c22; }
-    button, input, select {
-      font-size: 16px;
-      padding: 8px 10px;
-    }
+    button, input, select { font-size: 16px; padding: 8px 10px; }
     button { cursor:pointer; }
     .box { border:1px solid #ddd; border-radius: 12px; padding: 12px; margin-top: 12px; }
     .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
@@ -36,27 +33,15 @@
 <div class="topbar">
   <div>
     <h2>管理後台：帳號管理</h2>
-    <div class="muted small">功能：列出所有帳號／修改暱稱／無條件重設密碼（不需舊密碼）／調整角色</div>
   </div>
   <div class="row">
     <span id="me" class="pill muted">檢查登入狀態中…</span>
-    <button id="btnRefresh" disabled>重新載入列表</button>
-    <button id="btnLogout">登出（清除本機 token）</button>
+    <button id="btnRefresh" disabled>重新整理本網頁</button>
+    <button id="btnLogout">登出</button>
   </div>
 </div>
 
 <div id="notice" class="box hidden"></div>
-
-<div class="box">
-  <div class="row">
-    <div class="muted">說明：</div>
-    <ul class="muted" style="margin:0; padding-left: 18px;">
-      <li>「重設密碼」會直接覆寫密碼（不需要舊密碼、不做複雜度限制）。</li>
-      <li>暱稱可空白（看你後端怎麼限制；若後端拒絕空白，這裡會顯示錯誤）。</li>
-      <li>若你未新增 <span class="mono">/admin/reset-password</span>，本頁會自動改用 <span class="mono">PUT /admin/users</span> 來重設密碼。</li>
-    </ul>
-  </div>
-</div>
 
 <div class="box">
   <div class="row" style="justify-content:space-between;">
@@ -95,7 +80,12 @@
     const headers = options.headers || {};
     const token = getToken();
     if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch(BASE_URL + path, { ...options, headers });
+
+    return fetch(BASE_URL + path, {
+      ...options,
+      headers,
+      credentials: "include", // ★重要：確保 session cookie 會送出
+    });
   }
 
   const meEl = document.getElementById("me");
@@ -125,27 +115,39 @@
       .replaceAll("'", "&#39;");
   }
 
+  function escapeAttr(s) {
+    // attribute 最基本逃逸（避免 " 破壞屬性）
+    return String(s ?? "").replaceAll('"', "&quot;");
+  }
+
   async function ensureAdmin() {
     const r = await api("/auth/me");
-    if (!r.ok) throw new Error("尚未登入或 token 失效，請先到主頁登入（需 admin）");
+    if (!r.ok) throw new Error("尚未登入或登入失效，請先到主頁登入（需 admin）");
     const me = await r.json().catch(() => ({}));
     if ((me?.role || "") !== "admin") throw new Error("你不是 admin，無法使用此頁面");
+
     const nick = (me?.nickname || "").trim();
-    const label = nick ? `${nick}（admin）` : `${me?.email || "admin"}`;
+    const email = (me?.email || "").trim();
+    const label = nick ? `${nick}（admin）` : (email || "admin");
+
     meEl.textContent = `${label} 您好，繼續一起努力吧！`;
     meEl.classList.remove("muted");
   }
 
   function renderUsers(users) {
     countEl.textContent = users.length ? `（共 ${users.length} 個帳號）` : "";
+
     tbody.innerHTML = users.map(u => {
-      const email = escapeHtml(u.email || "");
+      // ★修正：data-email 用原始值（attribute 逃逸），顯示才用 escapeHtml
+      const emailRaw = String(u.email || "");
+      const emailShow = escapeHtml(emailRaw);
+
       const role = String(u.role || "user");
       const nickname = escapeHtml(u.nickname || "");
 
       return `
-        <tr data-email="${email}">
-          <td class="mono">${email}</td>
+        <tr data-email="${escapeAttr(emailRaw)}">
+          <td class="mono">${emailShow}</td>
           <td>
             <select class="role">
               <option value="user" ${role === "user" ? "selected" : ""}>user</option>
@@ -170,9 +172,9 @@
       `;
     }).join("");
 
-    // 綁定事件（事件委派）
+    // 綁定事件
     tbody.querySelectorAll("tr").forEach(tr => {
-      const email = tr.getAttribute("data-email");
+      const email = tr.getAttribute("data-email") || "";
       const roleSel = tr.querySelector(".role");
       const nickInp = tr.querySelector(".nickname");
       const pwdInp  = tr.querySelector(".newpwd");
@@ -206,11 +208,12 @@
         msgEl.textContent = "處理中…";
         msgEl.className = "small muted msg";
         try {
-          const newPassword = pwdInp.value; // 不限制長度/複雜度
-          if (typeof newPassword !== "string") throw new Error("請輸入新密碼");
-          if (newPassword.length === 0) throw new Error("請輸入新密碼");
+          const newPassword = pwdInp.value;
+          if (typeof newPassword !== "string" || newPassword.length === 0) {
+            throw new Error("請輸入新密碼");
+          }
 
-          // 先嘗試專用 API（若你未來加了 /admin/reset-password）
+          // 先嘗試專用 API（若未來加了 /admin/reset-password）
           let resp = await api("/admin/reset-password", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -218,7 +221,7 @@
           });
 
           if (resp.status === 404) {
-            // fallback：用既有 PUT /admin/users 重設密碼（你目前就支援）
+            // fallback：用 PUT /admin/users 重設密碼
             resp = await api("/admin/users", {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
@@ -259,9 +262,24 @@
 
   btnRefresh.addEventListener("click", loadUsers);
 
-  btnLogout.addEventListener("click", () => {
-    clearToken();
-    showNotice("ok", "✅ 已清除本機 token。若你是用 session 登入，請到主頁按登出。");
+  // ★登出：清 session + 清 token
+  btnLogout.addEventListener("click", async () => {
+    try {
+      // 1) 清 session（server）
+      await api("/auth/logout", { method: "POST" }).catch(() => null);
+    } finally {
+      // 2) 清 token（local）
+      clearToken();
+    }
+
+    // UI 變更
+    btnRefresh.disabled = true;
+    meEl.textContent = "未授權";
+    meEl.classList.add("muted");
+    tbody.innerHTML = `<tr><td colspan="5" class="muted">（已登出）</td></tr>`;
+    statusEl.textContent = "";
+
+    showNotice("ok", "✅ 已登出");
   });
 
   (async () => {
@@ -274,7 +292,10 @@
       meEl.classList.add("muted");
       btnRefresh.disabled = true;
       tbody.innerHTML = `<tr><td colspan="5" class="bad">❌ ${(e?.message || e)}</td></tr>`;
-      showNotice("bad", `❌ ${(e?.message || e)}<div class="muted small" style="margin-top:6px;">請先回到主頁登入 admin，或確認 token/Session 有效。</div>`);
+      showNotice(
+        "bad",
+        `❌ ${(e?.message || e)}<div class="muted small" style="margin-top:6px;">請先回到主頁登入 admin，或確認 token/Session 有效。</div>`
+      );
     }
   })();
 </script>
