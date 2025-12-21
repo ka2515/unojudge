@@ -266,18 +266,23 @@ app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
 
     if (!user) return res.status(401).json({ ok: false, error: "user_not_found" });
     if (!user.passwordHash) return res.status(500).json({ ok: false, error: "missing_password_hash" });
+    if (!user.email) return res.status(500).json({ ok: false, error: "missing_email" });
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ ok: false, error: "wrong_password" });
 
-    req.session.user = { email: user.email, role: user.role ?? "student" };
+    const role = user.role ?? "student";
+    const nickname = user.nickname ?? "";
 
-    const token = signToken({ email: user.email, role: user.role ?? "student" });
+    req.session.user = { email: user.email, role, nickname };
+
+    const token = signToken({ email: user.email, role });
 
     return res.json({
       ok: true,
-      email: user.email ?? null,
-      role: user.role ?? "student",
+      email: user.email,
+      role,
+      nickname,
       token,
     });
   } catch (err) {
@@ -285,6 +290,7 @@ app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
     return res.status(500).json({ ok: false, error: "server_error" });
   }
 });
+
 
 // 登出
 app.post("/auth/logout", (req, res) => {
