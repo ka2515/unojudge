@@ -133,28 +133,49 @@ function signToken(user) {
   return jwt.sign({ email: user.email, role: user.role }, JWT_SECRET, { expiresIn: "12h" });
 }
 
-// 把 session 的 user 掛回 req.user（讓後面統一用 req.user）
 app.use((req, _res, next) => {
   if (req.session?.user) req.user = req.session.user;
+
+  // ★重要：只要知道 email，就用 users.json 補齊 role/nickname（避免 session 快照過期）
+  if (req.user?.email) {
+    const users = loadUsers();
+    const u = users.find((x) => x.email === req.user.email);
+    req.user.role = u?.role ?? req.user.role ?? "user";
+    req.user.nickname = u?.nickname ?? req.user.nickname ?? "";
+  }
+
   next();
 });
 
+
 function authRequired(req, res, next) {
-  // 1) session
+  // 1) session-first
   if (req.user?.email) return next();
 
-  // 2) Bearer token（相容）
+  // 2) Bearer token
   const h = req.headers.authorization || "";
   const m = h.match(/^Bearer\s+(.+)$/i);
   if (!m) return res.status(401).json({ error: "unauthorized" });
 
   try {
-    req.user = jwt.verify(m[1], JWT_SECRET);
+    const payload = jwt.verify(m[1], JWT_SECRET); // { email, role, ... }
+
+    // ★補齊：以 users.json 為準
+    const users = loadUsers();
+    const u = users.find((x) => x.email === payload.email);
+
+    req.user = {
+      email: payload.email,
+      role: u?.role ?? payload.role ?? "user",
+      nickname: u?.nickname ?? "",
+    };
+
     return next();
-  } catch {
+  } catch (e) {
     return res.status(401).json({ error: "unauthorized" });
   }
 }
+
 
 function adminRequired(req, res, next) {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "forbidden" });
@@ -272,7 +293,11 @@ app.post("/auth/logout", (req, res) => {
 
 // 目前登入者
 app.get("/auth/me", authRequired, (req, res) => {
-  res.json({ email: req.user?.email ?? null, role: req.user?.role ?? "guest" });
+  res.json({
+    email: req.user?.email ?? null,
+    role: req.user?.role ?? "guest",
+    nickname: req.user?.nickname ?? "",
+  });
 });
 
 // 使用者自行修改密碼：body { oldPassword, newPassword }
@@ -295,6 +320,27 @@ app.post("/auth/change-password", authRequired, (req, res) => {
   saveUsers(users);
 
   res.json({ ok: true });
+});
+
+// 使用者自行修改暱稱：body { nickname }
+app.post("/auth/change-nickname", authRequired, (req, res) => {
+  const { nickname } = req.body || {};
+  if (typeof nickname !== "string") return res.status(400).json({ error: "missing nickname" });
+
+  const nn = nickname.trim(); // 你要允許空白也行，就不要 trim 後檢查
+  if (!nn) return res.status(400).json({ error: "nickname empty" });
+
+  const users = loadUsers();
+  const u = users.find((x) => x.email === req.user.email);
+  if (!u) return res.status(404).json({ error: "user not found" });
+
+  u.nickname = nn;
+  saveUsers(users);
+
+  // ★同步 session（如果使用者是 session 登入）
+  if (req.session?.user) req.session.user.nickname = nn;
+
+  res.json({ ok: true, nickname: nn });
 });
 
 // 個人成績摘要（右側用）
@@ -367,7 +413,11 @@ app.post("/grade", authRequired, async (req, res) => {
 
 // ===== 管理者：使用者管理 =====
 app.get("/admin/users", authRequired, adminRequired, (req, res) => {
-  const users = loadUsers().map((u) => ({ email: u.email, role: u.role }));
+  const users = loadUsers().map((u) => ({
+    email: u.email,
+    role: u.role,
+    nickname: u.nickname ?? "",
+  }));
   res.json({ users });
 });
 
@@ -385,7 +435,7 @@ app.post("/admin/users", authRequired, adminRequired, (req, res) => {
 });
 
 app.put("/admin/users", authRequired, adminRequired, (req, res) => {
-  const { email, password, role } = req.body || {};
+  const { email, password, role, nickname } = req.body || {}; // ★把 nickname 解構出來
   if (!email) return res.status(400).json({ error: "missing email" });
 
   const users = loadUsers();
@@ -397,9 +447,15 @@ app.put("/admin/users", authRequired, adminRequired, (req, res) => {
   }
   if (role) u.role = role === "admin" ? "admin" : "user";
 
+  // ★寫入暱稱
+  if (typeof nickname === "string") {
+    u.nickname = nickname.trim();
+  }
+
   saveUsers(users);
   res.json({ ok: true });
 });
+
 
 // 管理者全班概況
 app.get("/admin/overview", authRequired, adminRequired, (req, res) => {

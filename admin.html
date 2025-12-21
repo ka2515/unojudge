@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>管理後台 - 帳號管理</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif; margin: 18px; }
+    h2 { margin: 0 0 10px 0; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 12px; flex-wrap: wrap; }
+    .pill { border:1px solid #ddd; border-radius:999px; padding:6px 12px; font-size:14px; }
+    .muted { color:#666; }
+    .ok { color:#0a7; }
+    .bad { color:#c22; }
+    button, input, select {
+      font-size: 16px;
+      padding: 8px 10px;
+    }
+    button { cursor:pointer; }
+    .box { border:1px solid #ddd; border-radius: 12px; padding: 12px; margin-top: 12px; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; vertical-align: top; }
+    th { text-align:left; font-size: 14px; color:#444; }
+    td { font-size: 14px; }
+    .actions { display:flex; gap:8px; flex-wrap: wrap; align-items:center; }
+    .small { font-size: 12px; color:#777; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .danger { border:1px solid #f1a1a1; background:#fff0f0; border-radius: 10px; padding: 10px; }
+    .success { border:1px solid #8ddfc1; background:#eafff4; border-radius: 10px; padding: 10px; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h2>管理後台：帳號管理</h2>
+    <div class="muted small">功能：列出所有帳號／修改暱稱／無條件重設密碼（不需舊密碼）／調整角色</div>
+  </div>
+  <div class="row">
+    <span id="me" class="pill muted">檢查登入狀態中…</span>
+    <button id="btnRefresh" disabled>重新載入列表</button>
+    <button id="btnLogout">登出（清除本機 token）</button>
+  </div>
+</div>
+
+<div id="notice" class="box hidden"></div>
+
+<div class="box">
+  <div class="row">
+    <div class="muted">說明：</div>
+    <ul class="muted" style="margin:0; padding-left: 18px;">
+      <li>「重設密碼」會直接覆寫密碼（不需要舊密碼、不做複雜度限制）。</li>
+      <li>暱稱可空白（看你後端怎麼限制；若後端拒絕空白，這裡會顯示錯誤）。</li>
+      <li>若你未新增 <span class="mono">/admin/reset-password</span>，本頁會自動改用 <span class="mono">PUT /admin/users</span> 來重設密碼。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="box">
+  <div class="row" style="justify-content:space-between;">
+    <div>
+      <b>帳號列表</b>
+      <span id="count" class="muted"></span>
+    </div>
+    <div class="muted small" id="status"></div>
+  </div>
+
+  <div style="overflow:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:220px;">Email</th>
+          <th style="min-width:140px;">角色</th>
+          <th style="min-width:220px;">暱稱</th>
+          <th style="min-width:260px;">重設密碼</th>
+          <th style="min-width:220px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="5" class="muted">載入中…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const BASE_URL = ""; // 同源離線版維持空字串即可
+
+  function getToken() { return localStorage.getItem("token") || ""; }
+  function clearToken() { localStorage.removeItem("token"); }
+
+  async function api(path, options = {}) {
+    const headers = options.headers || {};
+    const token = getToken();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(BASE_URL + path, { ...options, headers });
+  }
+
+  const meEl = document.getElementById("me");
+  const btnRefresh = document.getElementById("btnRefresh");
+  const btnLogout = document.getElementById("btnLogout");
+  const tbody = document.getElementById("tbody");
+  const countEl = document.getElementById("count");
+  const statusEl = document.getElementById("status");
+  const noticeEl = document.getElementById("notice");
+
+  function showNotice(type, msg) {
+    noticeEl.classList.remove("hidden", "danger", "success");
+    noticeEl.classList.add(type === "ok" ? "success" : "danger");
+    noticeEl.innerHTML = msg;
+  }
+  function clearNotice() {
+    noticeEl.classList.add("hidden");
+    noticeEl.innerHTML = "";
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  async function ensureAdmin() {
+    const r = await api("/auth/me");
+    if (!r.ok) throw new Error("尚未登入或 token 失效，請先到主頁登入（需 admin）");
+    const me = await r.json().catch(() => ({}));
+    if ((me?.role || "") !== "admin") throw new Error("你不是 admin，無法使用此頁面");
+    const nick = (me?.nickname || "").trim();
+    const label = nick ? `${nick}（admin）` : `${me?.email || "admin"}`;
+    meEl.textContent = `${label} 您好，繼續一起努力吧！`;
+    meEl.classList.remove("muted");
+  }
+
+  function renderUsers(users) {
+    countEl.textContent = users.length ? `（共 ${users.length} 個帳號）` : "";
+    tbody.innerHTML = users.map(u => {
+      const email = escapeHtml(u.email || "");
+      const role = String(u.role || "user");
+      const nickname = escapeHtml(u.nickname || "");
+
+      return `
+        <tr data-email="${email}">
+          <td class="mono">${email}</td>
+          <td>
+            <select class="role">
+              <option value="user" ${role === "user" ? "selected" : ""}>user</option>
+              <option value="admin" ${role === "admin" ? "selected" : ""}>admin</option>
+            </select>
+          </td>
+          <td>
+            <input class="nickname" type="text" placeholder="（可留空）" value="${nickname}" style="width: 200px;" />
+          </td>
+          <td>
+            <input class="newpwd" type="text" placeholder="輸入新密碼（不限制）" style="width: 240px;" />
+            <div class="small muted">注意：按下重設後立即生效</div>
+          </td>
+          <td>
+            <div class="actions">
+              <button class="btnSaveNick">保存暱稱/角色</button>
+              <button class="btnResetPwd">重設密碼</button>
+            </div>
+            <div class="small muted msg"></div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    // 綁定事件（事件委派）
+    tbody.querySelectorAll("tr").forEach(tr => {
+      const email = tr.getAttribute("data-email");
+      const roleSel = tr.querySelector(".role");
+      const nickInp = tr.querySelector(".nickname");
+      const pwdInp  = tr.querySelector(".newpwd");
+      const msgEl   = tr.querySelector(".msg");
+
+      tr.querySelector(".btnSaveNick").addEventListener("click", async () => {
+        msgEl.textContent = "處理中…";
+        msgEl.className = "small muted msg";
+        try {
+          const payload = {
+            email,
+            role: roleSel.value,
+            nickname: nickInp.value, // 交給後端決定可否空白/長度
+          };
+          const resp = await api("/admin/users", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data?.error || "更新失敗");
+          msgEl.textContent = "✅ 已更新";
+          msgEl.className = "small ok msg";
+        } catch (e) {
+          msgEl.textContent = "❌ " + (e?.message || e);
+          msgEl.className = "small bad msg";
+        }
+      });
+
+      tr.querySelector(".btnResetPwd").addEventListener("click", async () => {
+        msgEl.textContent = "處理中…";
+        msgEl.className = "small muted msg";
+        try {
+          const newPassword = pwdInp.value; // 不限制長度/複雜度
+          if (typeof newPassword !== "string") throw new Error("請輸入新密碼");
+          if (newPassword.length === 0) throw new Error("請輸入新密碼");
+
+          // 先嘗試專用 API（若你未來加了 /admin/reset-password）
+          let resp = await api("/admin/reset-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, newPassword }),
+          });
+
+          if (resp.status === 404) {
+            // fallback：用既有 PUT /admin/users 重設密碼（你目前就支援）
+            resp = await api("/admin/users", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password: newPassword }),
+            });
+          }
+
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data?.error || "重設失敗");
+
+          pwdInp.value = "";
+          msgEl.textContent = "✅ 已重設密碼";
+          msgEl.className = "small ok msg";
+        } catch (e) {
+          msgEl.textContent = "❌ " + (e?.message || e);
+          msgEl.className = "small bad msg";
+        }
+      });
+    });
+  }
+
+  async function loadUsers() {
+    statusEl.textContent = "載入中…";
+    clearNotice();
+    try {
+      const resp = await api("/admin/users");
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || "無法取得使用者列表");
+      const users = Array.isArray(data?.users) ? data.users : [];
+      renderUsers(users);
+      statusEl.textContent = `更新時間：${new Date().toLocaleString()}`;
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5" class="bad">❌ ${(e?.message || e)}</td></tr>`;
+      statusEl.textContent = "";
+      showNotice("bad", `❌ ${(e?.message || e)}`);
+    }
+  }
+
+  btnRefresh.addEventListener("click", loadUsers);
+
+  btnLogout.addEventListener("click", () => {
+    clearToken();
+    showNotice("ok", "✅ 已清除本機 token。若你是用 session 登入，請到主頁按登出。");
+  });
+
+  (async () => {
+    try {
+      await ensureAdmin();
+      btnRefresh.disabled = false;
+      await loadUsers();
+    } catch (e) {
+      meEl.textContent = "未授權";
+      meEl.classList.add("muted");
+      btnRefresh.disabled = true;
+      tbody.innerHTML = `<tr><td colspan="5" class="bad">❌ ${(e?.message || e)}</td></tr>`;
+      showNotice("bad", `❌ ${(e?.message || e)}<div class="muted small" style="margin-top:6px;">請先回到主頁登入 admin，或確認 token/Session 有效。</div>`);
+    }
+  })();
+</script>
+
+</body>
+</html>

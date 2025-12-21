@@ -61,6 +61,7 @@
     <span id="me" class="pill muted">尚未登入</span>
     <button id="btnLogin">登入</button>
     <button id="btnChangePwd" style="display:none;">更改密碼</button>
+    <button id="btnAdmin" style="display:none;">後台</button>
     <button id="btnLogout" style="display:none;">登出</button>
 
   </div>
@@ -154,6 +155,7 @@
   const newPwd2 = document.getElementById("newPwd2");
   const btnDoChangePwd = document.getElementById("btnDoChangePwd");
   const pwdMsg = document.getElementById("pwdMsg");
+  const btnAdmin = document.getElementById("btnAdmin");
 
   function openPwdModal() {
     pwdMsg.textContent = "";
@@ -167,6 +169,12 @@
   function closePwdModal() {
     pwdModalBg.style.display = "none";
   }
+
+  function setAdminUI(role) {
+    if (role === "admin") btnAdmin.style.display = "inline-block";
+    else btnAdmin.style.display = "none";
+  }
+
 
   btnChangePwd.addEventListener("click", openPwdModal);
 
@@ -259,29 +267,37 @@
   }
 
   // ===== UI helpers =====
+  function setGreeting(me) {
+    const nn = String(me?.nickname || "").trim();
+    const email = String(me?.email || "").trim();
+    // 後台規則：nickname 優先，否則 email
+    const who = nn || email || "使用者";
+    meEl.textContent = `${who} 您好，繼續一起努力吧！`;
+    meEl.classList.remove("muted");
+    }
+
   function showWait() {
     resultCard.style.display = "block";
     resultCard.className = "card wait";
     scoreEl.textContent = "⏳ 評分中，請稍候…";
     detailsEl.innerHTML = "";
   }
+
   function showError(msg) {
     resultCard.style.display = "block";
     resultCard.className = "card bad";
     scoreEl.textContent = "❌ " + msg;
     detailsEl.innerHTML = "";
   }
+
   function renderResult(data) {
     resultCard.style.display = "block";
     resultCard.className = (data.pass === data.total) ? "card ok" : "card bad";
-
     // ★B版：不顯示使用時間，改顯示步數
     const stepText = (typeof data.execSteps === "number")
       ? ` <span class="muted">（步數：${data.execSteps}）</span>`
       : "";
-
     scoreEl.innerHTML = `成績：<b>${data.pass}/${data.total}</b>${stepText}`;
-
     const lines = (data.results || []).map(r => {
       if (r.ok) return `<li class="ok">Case ${r.id}: 正確</li>`;
       if (r.error?.includes("__EXEC_STEP_LIMIT__")) return `<li class="bad">Case ${r.id}: 步數超限</li>`;
@@ -289,7 +305,6 @@
       if (r.error?.includes("timed out")) return `<li class="bad">Case ${r.id}: 執行逾時</li>`;
       return `<li class="bad">Case ${r.id}: 錯誤</li>`;
     }).join("");
-
     detailsEl.innerHTML = `<ul>${lines}</ul>`;
   }
 
@@ -366,6 +381,11 @@
     if (e.target === modalBg) closeLogin();
   });
 
+  btnAdmin.addEventListener("click", () => {
+  window.open("/admin.html", "_blank");
+  });
+
+
   btnDoLogin.addEventListener("click", async () => {
     loginMsg.textContent = "登入中…";
     try {
@@ -380,11 +400,12 @@
       if (!resp.ok) throw new Error(data?.error || "登入失敗");
 
       setToken(data.token);
-      meEl.textContent = data.email;
-      meEl.classList.remove("muted");
+      setGreeting(data);
       btnLogin.style.display = "none";
       btnChangePwd.style.display = "inline-block";
       btnLogout.style.display = "inline-block";
+      setAdminUI(data.role);
+
 
       closeLogin();
       await loadProblems();
@@ -401,6 +422,7 @@
     btnLogin.style.display = "inline-block";
     btnChangePwd.style.display = "none";
     btnLogout.style.display = "none";
+    btnAdmin.style.display = "none";
     sideInfo.textContent = "（請先登入）";
     sideList.innerHTML = "";
     problemSelect.disabled = true;
@@ -431,11 +453,13 @@
       const r = await api("/auth/me");
       if (r.ok) {
         const me = await r.json();
-        meEl.textContent = me.email;
-        meEl.classList.remove("muted");
+        setGreeting(me);
         btnLogin.style.display = "none";
         btnChangePwd.style.display = "inline-block";
         btnLogout.style.display = "inline-block";
+        btnChangePwd.style.display = "inline-block";
+        setAdminUI(me.role);
+
         await loadProblems();
         await loadMySummary();
         return;
