@@ -1,0 +1,7 @@
+# runtime / local data (DO NOT COMMIT)
+data/users.json
+data/submissions.json
+
+# optional safety
+data/*.bak
+data/*.tmp
