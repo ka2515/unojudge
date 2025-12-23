@@ -5,3 +5,7 @@ data/submissions.json
 # optional safety
 data/*.bak
 data/*.tmp
+
+# runtime data (DO NOT COMMIT)
+users.json
+submissions.json
