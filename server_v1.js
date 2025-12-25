@@ -74,22 +74,6 @@ function writeJsonSafeAtomic(filePath, obj) {
   fs.renameSync(tmp, filePath);
 }
 
-// ===== 題庫 track 推斷（後備）=====
-function inferTrackFromId(problemId) {
-  const m = String(problemId || "").match(/^p(\d{2})$/i);
-  if (!m) return "misc";
-  const n = parseInt(m[1], 10);
-
-  if (n >= 1 && n <= 7) return "zone1";
-  if (n >= 8 && n <= 11) return "zone2";
-  if (n >= 12 && n <= 15) return "zone3";
-  if (n >= 16 && n <= 20) return "zone4";
-  if (n >= 21 && n <= 24) return "zone5";
-
-  // 未來擴充：若 tests_bank.json 有填 track，就以 track 為準；沒填才走這裡
-  return "zone5";
-}
-
 // ===== 題庫 =====
 function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
   if (!fs.existsSync(filePath)) throw new Error(`tests bank not found: ${filePath}`);
@@ -104,7 +88,6 @@ function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
     const tests = Array.isArray(p?.tests) ? p.tests : [];
     if (!id || tests.length === 0) continue;
 
-    // ✅ 新增：track（tests_bank.json 優先；沒有才用 id 推斷）
     const track = String(p?.track || "").trim() || inferTrackFromId(id);
 
     const normTests = tests.map((t, idx) => ({
@@ -120,6 +103,22 @@ function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
 }
 
 const BANK = loadBank();
+
+function inferTrackFromId(problemId) {
+  const m = String(problemId || "").match(/^p(\d{2})$/i);
+  if (!m) return "misc";
+  const n = parseInt(m[1], 10);
+
+  if (n >= 1 && n <= 7) return "zone1";
+  if (n >= 8 && n <= 11) return "zone2";
+  if (n >= 12 && n <= 15) return "zone3";
+  if (n >= 16 && n <= 20) return "zone4";
+  if (n >= 21 && n <= 24) return "zone5";
+
+  // 未來擴充：你可自行決定後續 p25+ 要放哪裡
+  return "zone5";
+}
+
 
 // ===== 使用者 =====
 const USERS_PATH = path.join(__dirname, "users.json");
@@ -166,6 +165,7 @@ app.use((req, _res, next) => {
   next();
 });
 
+
 function authRequired(req, res, next) {
   // 1) session-first
   if (req.user?.email) return next();
@@ -193,6 +193,7 @@ function authRequired(req, res, next) {
     return res.status(401).json({ error: "unauthorized" });
   }
 }
+
 
 function adminRequired(req, res, next) {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "forbidden" });
@@ -261,11 +262,11 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
 // 題目列表（給前端下拉）
 app.get("/problems", (req, res) => {
   const list = [...BANK.values()].map((p) => ({
-    id: p.id,
-    track: p.track || inferTrackFromId(p.id),
-    name: p.name,
-    total: p.tests.length,
-  }));
+  id: p.id,
+  track: p.track || inferTrackFromId(p.id),
+  name: p.name,
+  total: p.tests.length,
+}));
   res.json({ problems: list });
 });
 
@@ -309,6 +310,7 @@ app.post(["/login", "/api/login", "/auth/login"], async (req, res) => {
   }
 });
 
+
 // 登出
 app.post("/auth/logout", (req, res) => {
   req.session?.destroy?.(() => res.json({ ok: true }));
@@ -350,7 +352,7 @@ app.post("/auth/change-nickname", authRequired, (req, res) => {
   const { nickname } = req.body || {};
   if (typeof nickname !== "string") return res.status(400).json({ error: "missing nickname" });
 
-  const nn = nickname.trim();
+  const nn = nickname.trim(); // 你要允許空白也行，就不要 trim 後檢查
   if (!nn) return res.status(400).json({ error: "nickname empty" });
 
   const users = loadUsers();
@@ -404,6 +406,7 @@ app.post("/grade", authRequired, async (req, res) => {
       const ok = normOutput(out) === normOutput(t.expected);
       if (ok) pass++;
 
+      // 回每 case 步數（教學更好；你若不想回可刪掉 execSteps）
       results.push({ id: t.id, ok, execSteps });
     } catch (e) {
       results.push({ id: t.id, ok: false, error: String(e?.message || e) });
@@ -412,6 +415,7 @@ app.post("/grade", authRequired, async (req, res) => {
 
   const email = req.user.email;
 
+  // 存：只存分數/步數（不存作品、不存耗時）
   const subs = loadSubs();
   subs[email] = subs[email] || {};
   subs[email][problemId] = {
@@ -457,7 +461,7 @@ app.post("/admin/users", authRequired, adminRequired, (req, res) => {
 });
 
 app.put("/admin/users", authRequired, adminRequired, (req, res) => {
-  const { email, password, role, nickname } = req.body || {};
+  const { email, password, role, nickname } = req.body || {}; // ★把 nickname 解構出來
   if (!email) return res.status(400).json({ error: "missing email" });
 
   const users = loadUsers();
@@ -469,7 +473,7 @@ app.put("/admin/users", authRequired, adminRequired, (req, res) => {
   }
   if (role) u.role = role === "admin" ? "admin" : "user";
 
-  // ★寫入暱稱（允許清空：輸入空字串就變成 ""）
+  // ★寫入暱稱
   if (typeof nickname === "string") {
     u.nickname = nickname.trim();
   }
@@ -477,6 +481,7 @@ app.put("/admin/users", authRequired, adminRequired, (req, res) => {
   saveUsers(users);
   res.json({ ok: true });
 });
+
 
 // 管理者全班概況
 app.get("/admin/overview", authRequired, adminRequired, (req, res) => {

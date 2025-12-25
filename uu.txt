@@ -17,4 +17,4 @@ ssh pi5 "~/bin/update_judge.sh"
 
 O機 ---ssh---> 172.16.112.267
 ssh aqcg@172.16.112.237
- ~/bin/update_judge.sh
+~/bin/update_judge.sh
