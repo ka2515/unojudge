@@ -553,7 +553,7 @@
     {
       "id": "p33",
       "track": "county",
-      "name": "A01：Peter's Smokes",
+      "name": "A01 Peter's Smokes",
       "tests": [
         { "in": "4 3\n", "out": "5\n" },
         { "in": "10 3\n", "out": "14\n" },
@@ -566,7 +566,7 @@
     {
       "id": "p34",
       "track": "county",
-      "name": "A02：周年慶購物活動",
+      "name": "A02 周年慶購物活動",
       "tests": [
         { "in": "100 10 5000\n", "out": "55\n" },
         { "in": "4 10 5000\n", "out": "1388\n" },
@@ -580,7 +580,7 @@
     {
       "id": "p35",
       "track": "county",
-      "name": "A03:Triangle Wave",
+      "name": "A03 Triangle Wave",
       "tests": [
         {
           "in": "3\n2\n",
