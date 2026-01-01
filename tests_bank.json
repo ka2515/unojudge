@@ -580,7 +580,7 @@
     {
       "id": "p35",
       "track": "county",
-      "name": "A03：Triangle Wave",
+      "name": "A03:Triangle Wave",
       "tests": [
         {
           "in": "3\n2\n",
