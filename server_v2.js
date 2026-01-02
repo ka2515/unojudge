@@ -74,20 +74,6 @@ function writeJsonSafeAtomic(filePath, obj) {
   fs.renameSync(tmp, filePath);
 }
 
-// ===== 平台模式（由後台設定：practice / contest）=====
-const CONFIG_PATH = path.join(__dirname, "config.json");
-
-function loadConfig() {
-  const cfg = readJsonSafe(CONFIG_PATH, { mode: "practice" });
-  const m = String(cfg?.mode || "practice").toLowerCase();
-  return { mode: m === "contest" ? "contest" : "practice" };
-}
-
-function saveConfig(cfg) {
-  const m = String(cfg?.mode || "practice").toLowerCase();
-  writeJsonSafeAtomic(CONFIG_PATH, { mode: m === "contest" ? "contest" : "practice" });
-}
-
 // ===== 題庫 track 推斷（後備）=====
 function inferTrackFromId(problemId) {
   const m = String(problemId || "").match(/^p(\d{2})$/i);
@@ -99,6 +85,8 @@ function inferTrackFromId(problemId) {
   if (n >= 12 && n <= 15) return "zone3";
   if (n >= 16 && n <= 20) return "zone4";
   if (n >= 21 && n <= 24) return "zone5";
+
+  // 未來擴充：若 tests_bank.json 有填 track，就以 track 為準；沒填才走這裡
   return "zone5";
 }
 
@@ -116,6 +104,7 @@ function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
     const tests = Array.isArray(p?.tests) ? p.tests : [];
     if (!id || tests.length === 0) continue;
 
+    // ✅ 新增：track（tests_bank.json 優先；沒有才用 id 推斷）
     const track = String(p?.track || "").trim() || inferTrackFromId(id);
 
     const normTests = tests.map((t, idx) => ({
@@ -187,8 +176,9 @@ function authRequired(req, res, next) {
   if (!m) return res.status(401).json({ error: "unauthorized" });
 
   try {
-    const payload = jwt.verify(m[1], JWT_SECRET);
+    const payload = jwt.verify(m[1], JWT_SECRET); // { email, role, ... }
 
+    // ★補齊：以 users.json 為準
     const users = loadUsers();
     const u = users.find((x) => x.email === payload.email);
 
@@ -199,7 +189,7 @@ function authRequired(req, res, next) {
     };
 
     return next();
-  } catch {
+  } catch (e) {
     return res.status(401).json({ error: "unauthorized" });
   }
 }
@@ -217,7 +207,7 @@ function makeLineReader(inputText) {
 }
 
 function normOutput(s) {
-  const x = String(s ?? "").replace(/\r\n/g, "\n");
+  const x = s.replace(/\r\n/g, "\n");
   return (
     x
       .split("\n")
@@ -227,29 +217,11 @@ function normOutput(s) {
   );
 }
 
-// ✅ 練習平台需要：回傳錯誤案例時做截斷，避免前端爆掉
-function clip(s, n = 2000) {
-  const x = String(s ?? "");
-  if (x.length <= n) return x;
-  return x.slice(0, n) + `\n... (truncated, total ${x.length} chars)`;
-}
-
-// ✅ 將錯誤分類：WA / TLE / RE / OLE / SLE
-function classifyError(e) {
-  const msg = String(e?.message || e || "");
-
-  if (/Script execution timed out|timed out/i.test(msg)) return { reason: "TLE", message: msg };
-  if (msg === "OutputLimitExceeded") return { reason: "OLE", message: msg };
-  if (msg === "__EXEC_STEP_LIMIT__") return { reason: "SLE", message: msg };
-
-  return { reason: "RE", message: msg };
-}
-
 /**
  * runUserJs:
  * - Keep vm timeout (TIME_LIMIT_MS) for safety
  * - Keep OUTPUT_LIMIT
- * - Add step counter: injected __tick() is called by Blockly STATEMENT_PREFIX
+ * - ★ Add step counter: injected __tick() is called by Blockly STATEMENT_PREFIX
  * Returns: { out, execSteps }
  */
 function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLimit = OUTPUT_LIMIT, stepLimit = STEP_LIMIT) {
@@ -261,6 +233,7 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
     if (out.length > outputLimit) throw new Error("OutputLimitExceeded");
   }
 
+  // ★B版：步數計數器（閉包內，學生較難竄改）
   let execSteps = 0;
   function __tick() {
     execSteps++;
@@ -270,7 +243,7 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
   const sandbox = {
     print,
     readLine,
-    __tick,
+    __tick, // ★B版：插樁後的學生程式會呼叫
     console: { log: print },
     window: { alert: print, prompt: () => readLine() },
   };
@@ -387,6 +360,7 @@ app.post("/auth/change-nickname", authRequired, (req, res) => {
   u.nickname = nn;
   saveUsers(users);
 
+  // ★同步 session（如果使用者是 session 登入）
   if (req.session?.user) req.session.user.nickname = nn;
 
   res.json({ ok: true, nickname: nn });
@@ -409,39 +383,20 @@ app.get("/my/summary", authRequired, (req, res) => {
   res.json({ problems });
 });
 
-// ✅ 管理者：查看/設定全域模式
-app.get("/admin/mode", authRequired, adminRequired, (req, res) => {
-  res.json(loadConfig()); // { mode }
-});
-
-app.post("/admin/mode", authRequired, adminRequired, (req, res) => {
-  const m = String(req.body?.mode || "").toLowerCase();
-  const mode = m === "contest" ? "contest" : "practice";
-  saveConfig({ mode });
-  res.json({ ok: true, mode });
-});
-
-// 評分（必須登入；A 方案：練習/競賽都跑全部測資）
+// 評分（必須登入）
 app.post("/grade", authRequired, async (req, res) => {
   const { code, problemId } = req.body || {};
   if (typeof code !== "string" || !code.trim()) return res.status(400).json({ error: "missing code" });
   if (typeof problemId !== "string" || !BANK.has(problemId)) return res.status(400).json({ error: "invalid problemId" });
 
-  // ✅ 模式由後台決定（config.json）
-  const mode = loadConfig().mode;
-
   const problem = BANK.get(problemId);
-  const TESTS = problem.tests; // ✅ A 方案：全部測資都跑
+  const TESTS = problem.tests;
 
   let pass = 0;
   let totalSteps = 0;
   const results = [];
-  const failures = [];
 
-  for (let i = 0; i < TESTS.length; i++) {
-    const t = TESTS[i];
-    const caseIndex = i + 1;
-
+  for (const t of TESTS) {
     try {
       const { out, execSteps } = runUserJs(code, t.input);
       totalSteps += execSteps;
@@ -450,31 +405,8 @@ app.post("/grade", authRequired, async (req, res) => {
       if (ok) pass++;
 
       results.push({ id: t.id, ok, execSteps });
-
-      if (!ok) {
-        failures.push({
-          caseIndex,
-          id: t.id,
-          reason: "WA",
-          input: mode === "practice" ? clip(t.input) : undefined,
-          expected: mode === "practice" ? clip(t.expected) : undefined,
-          actual: clip(out),
-        });
-      }
     } catch (e) {
-      const { reason, message } = classifyError(e);
-
-      results.push({ id: t.id, ok: false, error: message });
-
-      failures.push({
-        caseIndex,
-        id: t.id,
-        reason,
-        input: mode === "practice" ? clip(t.input) : undefined,
-        expected: mode === "practice" ? clip(t.expected) : undefined,
-        actual: "",
-        error: clip(message, 800),
-      });
+      results.push({ id: t.id, ok: false, error: String(e?.message || e) });
     }
   }
 
@@ -492,14 +424,12 @@ app.post("/grade", authRequired, async (req, res) => {
   await saveSubsQueued(subs);
 
   res.json({
-    mode,
     problemId,
     problemName: problem.name,
     pass,
     total: TESTS.length,
     execSteps: totalSteps,
     results,
-    failures,
   });
 });
 
@@ -539,6 +469,7 @@ app.put("/admin/users", authRequired, adminRequired, (req, res) => {
   }
   if (role) u.role = role === "admin" ? "admin" : "user";
 
+  // ★寫入暱稱（允許清空：輸入空字串就變成 ""）
   if (typeof nickname === "string") {
     u.nickname = nickname.trim();
   }
@@ -583,8 +514,7 @@ app.get("/", (req, res) => {
 
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
-  const cfg = loadConfig();
   console.log(`Grader server running: http://localhost:${port}`);
   console.log(`Loaded problems: ${BANK.size}`);
-  console.log(`MODE=${cfg.mode} TIME_LIMIT_MS=${TIME_LIMIT_MS} OUTPUT_LIMIT=${OUTPUT_LIMIT} STEP_LIMIT=${STEP_LIMIT}`);
+  console.log(`TIME_LIMIT_MS=${TIME_LIMIT_MS} OUTPUT_LIMIT=${OUTPUT_LIMIT} STEP_LIMIT=${STEP_LIMIT}`);
 });

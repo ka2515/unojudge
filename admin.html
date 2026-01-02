@@ -5,73 +5,131 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>管理後台</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif; margin: 18px; }
+    body { font-family: sans-serif; margin: 18px; }
     h2 { margin: 0 0 10px 0; }
-    .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom: 12px; flex-wrap: wrap; }
-    .pill { border:1px solid #ddd; border-radius:999px; padding:6px 12px; font-size:14px; }
-    .muted { color:#666; }
+    .row { display:flex; gap:12px; flex-wrap: wrap; align-items:center; }
+    .box { border:1px solid #ddd; border-radius:12px; padding:14px; margin-top:14px; }
+    .muted { color:#777; }
     .ok { color:#0a7; }
     .bad { color:#c22; }
-    button, input, select { font-size: 16px; padding: 8px 10px; }
+    button, input, select { font-size: 18px; padding: 8px 10px; }
     button { cursor:pointer; }
-    .box { border:1px solid #ddd; border-radius: 12px; padding: 12px; margin-top: 12px; }
-    .row { display:flex; gap:10px; flex-wrap: wrap; align-items:center; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border-bottom: 1px solid #eee; padding: 10px 8px; vertical-align: top; }
-    th { text-align:left; font-size: 14px; color:#444; }
-    td { font-size: 14px; }
-    .actions { display:flex; gap:8px; flex-wrap: wrap; align-items:center; }
-    .small { font-size: 12px; color:#777; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .danger { border:1px solid #f1a1a1; background:#fff0f0; border-radius: 10px; padding: 10px; }
-    .success { border:1px solid #8ddfc1; background:#eafff4; border-radius: 10px; padding: 10px; }
-    .hidden { display:none; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border-bottom:1px solid #eee; padding: 8px; text-align:left; vertical-align: top; }
+    th { background:#fafafa; }
+    .pill { border:1px solid #ddd; border-radius:999px; padding:4px 10px; font-size:14px; }
+    .right { margin-left:auto; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+    .kpi { display:flex; gap:10px; flex-wrap: wrap; }
+    .kpi .card { border:1px solid #eee; border-radius:12px; padding:10px; min-width: 160px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; }
   </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div>
-    <h2>管理後台：帳號管理</h2>
-  </div>
-  <div class="row">
-    <span id="me" class="pill muted">檢查登入狀態中…</span>
-    <button id="btnRefresh" disabled>重新整理本網頁</button>
-    <button id="btnLogout">登出</button>
+<div class="row">
+  <h2>管理後台</h2>
+  <span class="pill muted" id="me">未登入</span>
+  <div class="right row">
+    <button id="btnBack">回前台</button>
+    <button id="btnRefresh">重新整理</button>
   </div>
 </div>
 
-<div id="notice" class="box hidden"></div>
+<div class="box" id="authBox">
+  <div class="row">
+    <div class="muted">此頁需要 admin 權限（token 會從 localStorage 讀取，跟前台一致）。</div>
+  </div>
+  <div class="row" style="margin-top:10px;">
+    <button id="btnCheck">檢查登入 / 權限</button>
+    <button id="btnClearToken">清除 token</button>
+    <span id="authMsg" class="muted"></span>
+  </div>
+</div>
 
+<!-- ✅ 模式控制 -->
 <div class="box">
-  <div class="row" style="justify-content:space-between;">
-    <div>
-      <b>帳號列表</b>
-      <span id="count" class="muted"></span>
-    </div>
-    <div class="muted small" id="status"></div>
+  <div class="row">
+    <div style="font-weight:700;">全域模式</div>
+    <span class="pill" id="modePill">讀取中…</span>
+    <span class="muted" id="modeHint"></span>
   </div>
 
-  <div style="overflow:auto;">
-    <table>
-      <thead>
-        <tr>
-          <th style="min-width:220px;">Email</th>
-          <th style="min-width:140px;">角色</th>
-          <th style="min-width:220px;">暱稱</th>
-          <th style="min-width:260px;">重設密碼</th>
-          <th style="min-width:220px;">操作</th>
-        </tr>
-      </thead>
-      <tbody id="tbody">
-        <tr><td colspan="5" class="muted">載入中…</td></tr>
-      </tbody>
-    </table>
+  <div class="row" style="margin-top:10px;">
+    <button id="btnSetPractice">切換為 練習</button>
+    <button id="btnSetContest">切換為 競賽</button>
+    <span id="modeMsg" class="muted"></span>
+  </div>
+
+  <div class="muted" style="margin-top:10px;">
+    練習：學生錯誤時會看到「測試輸入 / 正確輸出 / 學生輸出」。<br/>
+    競賽：仍然評測所有測資，但不顯示「測試輸入 / 正確輸出」（避免洩題）。
+  </div>
+</div>
+
+<div class="grid2">
+  <!-- overview -->
+  <div class="box">
+    <div class="row">
+      <div style="font-weight:700;">全班概況</div>
+      <span id="ovMsg" class="muted"></span>
+    </div>
+    <div class="kpi" id="kpi"></div>
+    <div style="max-height: 420px; overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>題目</th>
+            <th>測資數</th>
+            <th>學生數</th>
+            <th>平均通過</th>
+          </tr>
+        </thead>
+        <tbody id="overviewBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- users -->
+  <div class="box">
+    <div class="row">
+      <div style="font-weight:700;">使用者管理</div>
+      <span id="usersMsg" class="muted"></span>
+    </div>
+
+    <div class="box" style="border-color:#eee;">
+      <div style="font-weight:700; margin-bottom:8px;">新增使用者</div>
+      <div class="row">
+        <input id="newEmail" type="email" placeholder="email" style="flex:1; min-width: 220px;" />
+        <input id="newPwd" type="text" placeholder="password" style="flex:1; min-width: 180px;" />
+        <select id="newRole">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+        <button id="btnAddUser">新增</button>
+      </div>
+      <div class="muted" style="margin-top:6px;">注意：password 會被 bcrypt hash 存進 users.json。</div>
+    </div>
+
+    <div style="max-height: 420px; overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>email</th>
+            <th>role</th>
+            <th>nickname</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <script>
-  const BASE_URL = ""; // 同源離線版維持空字串即可
+  const BASE_URL = "";
 
   function getToken() { return localStorage.getItem("token") || ""; }
   function clearToken() { localStorage.removeItem("token"); }
@@ -80,224 +138,281 @@
     const headers = options.headers || {};
     const token = getToken();
     if (token) headers["Authorization"] = "Bearer " + token;
-
-    return fetch(BASE_URL + path, {
-      ...options,
-      headers,
-      credentials: "include", // ★重要：確保 session cookie 會送出
-    });
-  }
-
-  const meEl = document.getElementById("me");
-  const btnRefresh = document.getElementById("btnRefresh");
-  const btnLogout = document.getElementById("btnLogout");
-  const tbody = document.getElementById("tbody");
-  const countEl = document.getElementById("count");
-  const statusEl = document.getElementById("status");
-  const noticeEl = document.getElementById("notice");
-
-  function showNotice(type, msg) {
-    noticeEl.classList.remove("hidden", "danger", "success");
-    noticeEl.classList.add(type === "ok" ? "success" : "danger");
-    noticeEl.innerHTML = msg;
-  }
-  function clearNotice() {
-    noticeEl.classList.add("hidden");
-    noticeEl.innerHTML = "";
+    return fetch(BASE_URL + path, { ...options, headers });
   }
 
   function escapeHtml(s) {
     return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#39;");
   }
 
-  function escapeAttr(s) {
-    // attribute 最基本逃逸（避免 " 破壞屬性）
-    return String(s ?? "").replaceAll('"', "&quot;");
-  }
+  const meEl = document.getElementById("me");
+  const authMsg = document.getElementById("authMsg");
+  const modePill = document.getElementById("modePill");
+  const modeHint = document.getElementById("modeHint");
+  const modeMsg = document.getElementById("modeMsg");
 
-  async function ensureAdmin() {
+  const ovMsg = document.getElementById("ovMsg");
+  const kpi = document.getElementById("kpi");
+  const overviewBody = document.getElementById("overviewBody");
+
+  const usersMsg = document.getElementById("usersMsg");
+  const usersBody = document.getElementById("usersBody");
+
+  document.getElementById("btnBack").addEventListener("click", () => location.href = "/");
+  document.getElementById("btnRefresh").addEventListener("click", () => refreshAll());
+
+  document.getElementById("btnClearToken").addEventListener("click", () => {
+    clearToken();
+    meEl.textContent = "未登入";
+    meEl.className = "pill muted";
+    authMsg.textContent = "已清除 token";
+  });
+
+  document.getElementById("btnCheck").addEventListener("click", async () => {
+    await checkMe();
+    await loadMode();
+  });
+
+  async function checkMe() {
+    authMsg.textContent = "檢查中…";
+    const token = getToken();
+    if (!token) {
+      authMsg.textContent = "沒有 token（請先在前台登入）";
+      meEl.textContent = "未登入";
+      meEl.className = "pill muted";
+      return false;
+    }
     const r = await api("/auth/me");
-    if (!r.ok) throw new Error("尚未登入或登入失效，請先到主頁登入（需 admin）");
+    if (!r.ok) {
+      authMsg.textContent = "token 無效或過期（請回前台重新登入）";
+      meEl.textContent = "未登入";
+      meEl.className = "pill muted";
+      return false;
+    }
     const me = await r.json().catch(() => ({}));
-    if ((me?.role || "") !== "admin") throw new Error("你不是 admin，無法使用此頁面");
-
-    const nick = (me?.nickname || "").trim();
-    const email = (me?.email || "").trim();
-    const label = nick ? `${nick}（admin）` : (email || "admin");
-
-    meEl.textContent = `${label} 您好，繼續一起努力吧！`;
-    meEl.classList.remove("muted");
+    const who = (me.nickname || me.email || "使用者");
+    meEl.textContent = `${who} (${me.role || "?"})`;
+    meEl.className = "pill";
+    if (me.role !== "admin") {
+      authMsg.textContent = "⚠️ 你不是 admin，無法使用後台功能";
+      return false;
+    }
+    authMsg.textContent = "✅ admin 已登入";
+    return true;
   }
 
-  function renderUsers(users) {
-    countEl.textContent = users.length ? `（共 ${users.length} 個帳號）` : "";
+  // ===== 模式 =====
+  function setModePill(mode) {
+    const m = String(mode || "").toLowerCase();
+    if (m === "contest") {
+      modePill.textContent = "競賽（contest）";
+      modePill.className = "pill bad";
+      modeHint.textContent = "競賽：不顯示測試輸入/正確輸出";
+    } else {
+      modePill.textContent = "練習（practice）";
+      modePill.className = "pill ok";
+      modeHint.textContent = "練習：顯示 input/expected/actual";
+    }
+  }
 
-    tbody.innerHTML = users.map(u => {
-      // ★修正：data-email 用原始值（attribute 逃逸），顯示才用 escapeHtml
-      const emailRaw = String(u.email || "");
-      const emailShow = escapeHtml(emailRaw);
+  async function loadMode() {
+    modeMsg.textContent = "";
+    modePill.textContent = "讀取中…";
+    modePill.className = "pill muted";
+    const r = await api("/admin/mode");
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      modeMsg.textContent = "❌ 讀取失敗：" + (data?.error || r.status);
+      return;
+    }
+    setModePill(data.mode);
+  }
 
-      const role = String(u.role || "user");
-      const nickname = escapeHtml(u.nickname || "");
+  async function setMode(mode) {
+    modeMsg.textContent = "切換中…";
+    const r = await api("/admin/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      modeMsg.textContent = "❌ 切換失敗：" + (data?.error || r.status);
+      return;
+    }
+    setModePill(data.mode);
+    modeMsg.textContent = "✅ 已切換為 " + data.mode;
+  }
 
+  document.getElementById("btnSetPractice").addEventListener("click", () => setMode("practice"));
+  document.getElementById("btnSetContest").addEventListener("click", () => setMode("contest"));
+
+  // ===== overview =====
+  async function loadOverview() {
+    ovMsg.textContent = "讀取中…";
+    kpi.innerHTML = "";
+    overviewBody.innerHTML = "";
+
+    const r = await api("/admin/overview");
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      ovMsg.textContent = "❌ 讀取失敗：" + (data?.error || r.status);
+      return;
+    }
+
+    const ov = data.overview || {};
+    const rows = Object.entries(ov);
+
+    let totalProblems = rows.length;
+    let totalStudents = 0;
+    let avgSum = 0;
+
+    for (const [, v] of rows) {
+      totalStudents = Math.max(totalStudents, Number(v?.students || 0));
+      avgSum += Number(v?.avgPass || 0);
+    }
+
+    const avgAll = totalProblems ? Math.round((avgSum / totalProblems) * 100) / 100 : 0;
+
+    kpi.innerHTML = `
+      <div class="card"><div class="muted">題目數</div><div style="font-size:22px;font-weight:700;">${totalProblems}</div></div>
+      <div class="card"><div class="muted">最多作答人數</div><div style="font-size:22px;font-weight:700;">${totalStudents}</div></div>
+      <div class="card"><div class="muted">平均通過(粗略)</div><div style="font-size:22px;font-weight:700;">${avgAll}</div></div>
+    `;
+
+    // 題目排序：p01..p99 先，其他放後
+    rows.sort((a, b) => {
+      const aid = a[0], bid = b[0];
+      const am = String(aid).match(/^p(\d+)$/i);
+      const bm = String(bid).match(/^p(\d+)$/i);
+      const an = am ? parseInt(am[1], 10) : 999999;
+      const bn = bm ? parseInt(bm[1], 10) : 999999;
+      if (an !== bn) return an - bn;
+      return String(aid).localeCompare(String(bid));
+    });
+
+    overviewBody.innerHTML = rows.map(([pid, v]) => `
+      <tr>
+        <td><b>${escapeHtml(pid)}</b><div class="muted">${escapeHtml(v?.name || "")}</div></td>
+        <td>${escapeHtml(v?.total)}</td>
+        <td>${escapeHtml(v?.students)}</td>
+        <td>${escapeHtml(v?.avgPass)}</td>
+      </tr>
+    `).join("");
+
+    ovMsg.textContent = "✅ 已更新";
+  }
+
+  // ===== users =====
+  async function loadUsers() {
+    usersMsg.textContent = "讀取中…";
+    usersBody.innerHTML = "";
+
+    const r = await api("/admin/users");
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      usersMsg.textContent = "❌ 讀取失敗：" + (data?.error || r.status);
+      return;
+    }
+
+    const users = Array.isArray(data.users) ? data.users : [];
+    usersBody.innerHTML = users.map(u => {
+      const email = u.email || "";
+      const role = u.role || "user";
+      const nickname = u.nickname || "";
       return `
-        <tr data-email="${escapeAttr(emailRaw)}">
-          <td class="mono">${emailShow}</td>
+        <tr>
+          <td class="mono">${escapeHtml(email)}</td>
           <td>
-            <select class="role">
+            <select data-role="${escapeHtml(email)}">
               <option value="user" ${role === "user" ? "selected" : ""}>user</option>
               <option value="admin" ${role === "admin" ? "selected" : ""}>admin</option>
             </select>
           </td>
           <td>
-            <input class="nickname" type="text" placeholder="（可留空）" value="${nickname}" style="width: 200px;" />
+            <input data-nick="${escapeHtml(email)}" type="text" value="${escapeHtml(nickname)}" placeholder="nickname" />
           </td>
           <td>
-            <input class="newpwd" type="text" placeholder="輸入新密碼（不限制）" style="width: 240px;" />
-            <div class="small muted">注意：按下重設後立即生效</div>
-          </td>
-          <td>
-            <div class="actions">
-              <button class="btnSaveNick">保存暱稱/角色</button>
-              <button class="btnResetPwd">重設密碼</button>
+            <div class="row">
+              <input data-pwd="${escapeHtml(email)}" type="text" placeholder="新密碼(選填)" style="min-width:160px;" />
+              <button data-save="${escapeHtml(email)}">儲存</button>
             </div>
-            <div class="small muted msg"></div>
           </td>
         </tr>
       `;
     }).join("");
 
-    // 綁定事件
-    tbody.querySelectorAll("tr").forEach(tr => {
-      const email = tr.getAttribute("data-email") || "";
-      const roleSel = tr.querySelector(".role");
-      const nickInp = tr.querySelector(".nickname");
-      const pwdInp  = tr.querySelector(".newpwd");
-      const msgEl   = tr.querySelector(".msg");
+    // 綁定儲存事件
+    for (const btn of usersBody.querySelectorAll("button[data-save]")) {
+      btn.addEventListener("click", async () => {
+        const email = btn.getAttribute("data-save");
+        const roleSel = usersBody.querySelector(`select[data-role="${CSS.escape(email)}"]`);
+        const nickInp = usersBody.querySelector(`input[data-nick="${CSS.escape(email)}"]`);
+        const pwdInp = usersBody.querySelector(`input[data-pwd="${CSS.escape(email)}"]`);
+        const role = roleSel ? roleSel.value : "user";
+        const nickname = nickInp ? nickInp.value : "";
+        const password = pwdInp ? pwdInp.value : "";
 
-      tr.querySelector(".btnSaveNick").addEventListener("click", async () => {
-        msgEl.textContent = "處理中…";
-        msgEl.className = "small muted msg";
-        try {
-          const payload = {
-            email,
-            role: roleSel.value,
-            nickname: nickInp.value, // 交給後端決定可否空白/長度
-          };
-          const resp = await api("/admin/users", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const data = await resp.json().catch(() => ({}));
-          if (!resp.ok) throw new Error(data?.error || "更新失敗");
-          msgEl.textContent = "✅ 已更新";
-          msgEl.className = "small ok msg";
-        } catch (e) {
-          msgEl.textContent = "❌ " + (e?.message || e);
-          msgEl.className = "small bad msg";
+        usersMsg.textContent = "儲存中…";
+        const r = await api("/admin/users", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, role, nickname, password })
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          usersMsg.textContent = "❌ 儲存失敗：" + (data?.error || r.status);
+          return;
         }
+        usersMsg.textContent = "✅ 已儲存：" + email;
+        if (pwdInp) pwdInp.value = "";
       });
+    }
 
-      tr.querySelector(".btnResetPwd").addEventListener("click", async () => {
-        msgEl.textContent = "處理中…";
-        msgEl.className = "small muted msg";
-        try {
-          const newPassword = pwdInp.value;
-          if (typeof newPassword !== "string" || newPassword.length === 0) {
-            throw new Error("請輸入新密碼");
-          }
+    usersMsg.textContent = `✅ 使用者數：${users.length}`;
+  }
 
-          // 先嘗試專用 API（若未來加了 /admin/reset-password）
-          let resp = await api("/admin/reset-password", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, newPassword }),
-          });
+  document.getElementById("btnAddUser").addEventListener("click", async () => {
+    const email = document.getElementById("newEmail").value.trim();
+    const password = document.getElementById("newPwd").value;
+    const role = document.getElementById("newRole").value;
 
-          if (resp.status === 404) {
-            // fallback：用 PUT /admin/users 重設密碼
-            resp = await api("/admin/users", {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, password: newPassword }),
-            });
-          }
+    if (!email || !password) {
+      usersMsg.textContent = "❌ 請輸入 email 與 password";
+      return;
+    }
 
-          const data = await resp.json().catch(() => ({}));
-          if (!resp.ok) throw new Error(data?.error || "重設失敗");
-
-          pwdInp.value = "";
-          msgEl.textContent = "✅ 已重設密碼";
-          msgEl.className = "small ok msg";
-        } catch (e) {
-          msgEl.textContent = "❌ " + (e?.message || e);
-          msgEl.className = "small bad msg";
-        }
-      });
+    usersMsg.textContent = "新增中…";
+    const r = await api("/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, role })
     });
-  }
-
-  async function loadUsers() {
-    statusEl.textContent = "載入中…";
-    clearNotice();
-    try {
-      const resp = await api("/admin/users");
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(data?.error || "無法取得使用者列表");
-      const users = Array.isArray(data?.users) ? data.users : [];
-      renderUsers(users);
-      statusEl.textContent = `更新時間：${new Date().toLocaleString()}`;
-    } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="5" class="bad">❌ ${(e?.message || e)}</td></tr>`;
-      statusEl.textContent = "";
-      showNotice("bad", `❌ ${(e?.message || e)}`);
-    }
-  }
-
-  btnRefresh.addEventListener("click", loadUsers);
-
-  // ★登出：清 session + 清 token
-  btnLogout.addEventListener("click", async () => {
-    try {
-      // 1) 清 session（server）
-      await api("/auth/logout", { method: "POST" }).catch(() => null);
-    } finally {
-      // 2) 清 token（local）
-      clearToken();
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      usersMsg.textContent = "❌ 新增失敗：" + (data?.error || r.status);
+      return;
     }
 
-    // UI 變更
-    btnRefresh.disabled = true;
-    meEl.textContent = "未授權";
-    meEl.classList.add("muted");
-    tbody.innerHTML = `<tr><td colspan="5" class="muted">（已登出）</td></tr>`;
-    statusEl.textContent = "";
-
-    showNotice("ok", "✅ 已登出");
+    document.getElementById("newEmail").value = "";
+    document.getElementById("newPwd").value = "";
+    document.getElementById("newRole").value = "user";
+    usersMsg.textContent = "✅ 新增成功";
+    await loadUsers();
   });
 
-  (async () => {
-    try {
-      await ensureAdmin();
-      btnRefresh.disabled = false;
-      await loadUsers();
-    } catch (e) {
-      meEl.textContent = "未授權";
-      meEl.classList.add("muted");
-      btnRefresh.disabled = true;
-      tbody.innerHTML = `<tr><td colspan="5" class="bad">❌ ${(e?.message || e)}</td></tr>`;
-      showNotice(
-        "bad",
-        `❌ ${(e?.message || e)}<div class="muted small" style="margin-top:6px;">請先回到主頁登入 admin，或確認 token/Session 有效。</div>`
-      );
-    }
-  })();
+  async function refreshAll() {
+    const ok = await checkMe();
+    if (!ok) return;
+    await loadMode();
+    await loadOverview();
+    await loadUsers();
+  }
+
+  // startup
+  refreshAll();
 </script>
 
 </body>
