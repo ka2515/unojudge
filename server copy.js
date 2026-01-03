@@ -1,4 +1,4 @@
-// 計算方塊版 (server.js)
+// 計算方塊版
 
 import fs from "node:fs";
 import vm from "node:vm";
@@ -88,7 +88,21 @@ function saveConfig(cfg) {
   writeJsonSafeAtomic(CONFIG_PATH, { mode: m === "contest" ? "contest" : "practice" });
 }
 
-// ===== 題庫（track 改為「必填」，移除題號區間推斷的贅肉）=====
+// ===== 題庫 track 推斷（後備）=====
+function inferTrackFromId(problemId) {
+  const m = String(problemId || "").match(/^p(\d{2})$/i);
+  if (!m) return "misc";
+  const n = parseInt(m[1], 10);
+
+  if (n >= 1 && n <= 7) return "zone1";
+  if (n >= 8 && n <= 11) return "zone2";
+  if (n >= 12 && n <= 15) return "zone3";
+  if (n >= 16 && n <= 20) return "zone4";
+  if (n >= 21 && n <= 24) return "zone5";
+  return "zone5";
+}
+
+// ===== 題庫 =====
 function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
   if (!fs.existsSync(filePath)) throw new Error(`tests bank not found: ${filePath}`);
   const bank = JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -102,9 +116,7 @@ function loadBank(filePath = path.join(__dirname, "tests_bank.json")) {
     const tests = Array.isArray(p?.tests) ? p.tests : [];
     if (!id || tests.length === 0) continue;
 
-    // ✅ 新規則：track 必填（避免漏填造成隱性分類錯誤）
-    const track = String(p?.track || "").trim();
-    if (!track) throw new Error(`Problem ${id} missing required field "track" in tests_bank.json`);
+    const track = String(p?.track || "").trim() || inferTrackFromId(id);
 
     const normTests = tests.map((t, idx) => ({
       id: String(idx + 1).padStart(2, "0"),
@@ -277,7 +289,7 @@ function runUserJs(userJsCode, inputText, timeLimitMs = TIME_LIMIT_MS, outputLim
 app.get("/problems", (req, res) => {
   const list = [...BANK.values()].map((p) => ({
     id: p.id,
-    track: p.track, // ✅ 直接使用題庫 track（已必填）
+    track: p.track || inferTrackFromId(p.id),
     name: p.name,
     total: p.tests.length,
   }));
@@ -388,7 +400,7 @@ app.get("/my/summary", authRequired, (req, res) => {
     const r = mine[p.id];
     return {
       id: p.id,
-      track: p.track, // ✅ 直接使用題庫 track（已必填）
+      track: p.track || inferTrackFromId(p.id),
       name: p.name,
       total: p.tests.length,
       pass: r?.pass ?? 0,
