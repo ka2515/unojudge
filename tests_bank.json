@@ -932,6 +932,53 @@
           "out": "19\n"
         }
       ]
+    },
+    {
+      "id": "p43",
+      "track": "county",
+      "name": "C03 Train Tracks",
+      "tests": [
+        {
+          "in": "MF MF\n",
+          "out": "LOOP\n"
+        },
+        {
+          "in": "FM FF MF MM\n",
+          "out": "LOOP\n"
+        },
+        {
+          "in": "MM FF\n",
+          "out": "LOOP\n"
+        },
+        {
+          "in": "MF MF MF MF FF\n",
+          "out": "NO LOOP\n"
+        },
+        {
+          "in": "MF\n",
+          "out": "NO LOOP\n"
+        },
+        {
+          "in": "FF FF FF FF\n",
+          "out": "NO LOOP\n"
+        },
+        {
+          "in": "MM MM MM MM MM MM\n",
+          "out": "NO LOOP\n"
+        },
+        {
+          "in": "MF FM MF FM MF\n",
+          "out": "LOOP\n"
+        },
+        {
+          "in": "MM MF FF FM\n",
+          "out": "LOOP\n"
+        },
+        {
+          "in": "MF MF MF FF FF FF\n",
+          "out": "NO LOOP\n"
+        }
+      ]
     }
   ]
 }
