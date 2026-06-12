@@ -1,4 +1,3 @@
-<!-- 計算方塊版 -->
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -103,7 +102,6 @@
     <div style="font-weight:700; margin-bottom:8px;">我的題目進度</div>
     <div class="muted" id="sideInfo">（請先登入）</div>
 
-    <!-- ★依 track 分區（固定預留週末/縣賽/國賽） -->
     <div class="zone">
       <div class="zone-title">第 1 區</div>
       <ul class="list" id="zone1"></ul>
@@ -154,7 +152,6 @@
   </div>
 </div>
 
-<!-- Login Modal -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
     <h3>登入</h3>
@@ -167,7 +164,6 @@
   </div>
 </div>
 
-<!-- Change Password Modal -->
 <div class="modal-bg" id="pwdModalBg">
   <div class="modal">
     <h3>更改密碼</h3>
@@ -184,9 +180,7 @@
 <script>
   try { Blockly.setLocale(Blockly.Msg); } catch (e) {}
 
-  // ✅ 修改後的純 Git 串接寫法（先將 API 路由名稱保留，稍後直接對接新架構）
-  const BASE_URL = "https://miniature-goggles-v695ppr4rx65f6qwv-8080.app.github.dev"; // 自動適應 GitHub Pages 網址
-
+  // 純前端 Git 運作流派，不再使用 BASE_URL 路由
   const problemSelect = document.getElementById("problemSelect");
   const fileInput = document.getElementById("fileInput");
   const scoreEl = document.getElementById("score");
@@ -241,61 +235,14 @@
       .replaceAll("'", "&#39;");
   }
 
-  function openPwdModal() {
-    pwdMsg.textContent = "";
-    oldPwd.value = "";
-    newPwd.value = "";
-    newPwd2.value = "";
-    pwdModalBg.style.display = "flex";
-    oldPwd.focus();
-  }
-  function closePwdModal() { pwdModalBg.style.display = "none"; }
-
   function setAdminUI(role) {
     btnAdmin.style.display = (role === "admin") ? "inline-block" : "none";
   }
-
-  btnChangePwd.addEventListener("click", openPwdModal);
-  pwdModalBg.addEventListener("click", (e) => { if (e.target === pwdModalBg) closePwdModal(); });
-
-  btnDoChangePwd.addEventListener("click", async () => {
-    try {
-      pwdMsg.textContent = "處理中…";
-      const a = oldPwd.value;
-      const b = newPwd.value;
-      const c = newPwd2.value;
-
-      if (!a || !b || !c) throw new Error("請填寫完整");
-      if (b.length < 6) throw new Error("新密碼至少 6 碼");
-      if (b !== c) throw new Error("兩次新密碼不一致");
-
-      const resp = await api("/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oldPassword: a, newPassword: b }),
-      });
-
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(data?.error || "更改失敗");
-
-      pwdMsg.textContent = "✅ 更改成功";
-      setTimeout(() => closePwdModal(), 500);
-    } catch (e) {
-      pwdMsg.textContent = "❌ " + (e?.message || e);
-    }
-  });
 
   // ===== token =====
   function getToken() { return localStorage.getItem("token") || ""; }
   function setToken(t) { localStorage.setItem("token", t); }
   function clearToken() { localStorage.removeItem("token"); }
-
-  async function api(path, options = {}) {
-    const headers = options.headers || {};
-    const token = getToken();
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch(BASE_URL + path, { ...options, headers });
-  }
 
   // ===== Blockly: m5 XML -> JS =====
   function getJSGenerator() {
@@ -315,7 +262,6 @@
     if (!JS) throw new Error("找不到 JavaScript generator");
     patchGenerators(JS);
 
-    // ✅ 相容不同版本/客製 Blockly：text_length1 -> text_length
     if (!Blockly.Blocks["text_length1"] && Blockly.Blocks["text_length"]) {
       Blockly.Blocks["text_length1"] = Blockly.Blocks["text_length"];
     }
@@ -334,7 +280,6 @@
     else if (Blockly.Xml?.appendDomToWorkspace) Blockly.Xml.appendDomToWorkspace(dom, workspace);
     else throw new Error("找不到 Blockly XML 匯入方法");
 
-    // ★B版：在每個 statement 前插入 __tick()
     JS.STATEMENT_PREFIX = "__tick();\n";
     JS.addReservedWords("__tick");
 
@@ -364,7 +309,6 @@
     detailsEl.innerHTML = "";
   }
 
-  // ✅ renderResult：競賽不顯示測資內容
   function renderResult(data) {
     resultCard.style.display = "block";
     resultCard.className = (data.pass === data.total) ? "card ok" : "card bad";
@@ -375,7 +319,6 @@
 
     scoreEl.innerHTML = `成績：<b>${data.pass}/${data.total}</b>${stepText}`;
 
-    // Case 對錯清單（競賽/練習都顯示）
     const lines = (data.results || []).map(r => {
       if (r.ok) return `<li class="ok">Case ${escapeHtml(r.id)}: 正確</li>`;
       if (r.error?.includes("__EXEC_STEP_LIMIT__")) return `<li class="bad">Case ${escapeHtml(r.id)}: 步數超限</li>`;
@@ -385,89 +328,25 @@
     }).join("");
 
     detailsEl.innerHTML = `<ul>${lines}</ul>`;
-
-    // 依 mode 決定是否顯示測資內容
-    const mode = String(data.mode || "").toLowerCase();
-    const isPractice = (mode !== "contest"); // 舊版 server 沒回 mode 時，保守視為練習
-
-    const failures = Array.isArray(data.failures) ? data.failures : [];
-    if (!failures.length) return;
-
-    if (!isPractice) {
-      detailsEl.innerHTML += `
-        <div class="muted" style="margin-top:10px;">
-          ⚠️ 目前為「競賽模式」，不顯示測試輸入/正確輸出/學生輸出。
-        </div>
-      `;
-      return;
-    }
-
-    // 練習模式：顯示 input / expected / actual
-    function esc(s) {
-      return String(s ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
-
-    const blocks = failures.map(f => {
-      const reason = esc(f.reason || "WA");
-      const cid = esc(f.id || "");
-      const input = esc(f.input || "");
-      const expected = esc(f.expected || "");
-      const actual = esc(f.actual || "");
-      const err = f.error
-        ? `<div class="muted"><b>錯誤訊息</b></div><pre style="white-space:pre-wrap;word-break:break-word;">${esc(f.error)}</pre>`
-        : "";
-
-      return `
-        <details style="margin:10px 0; border:1px solid #eee; border-radius:12px; padding:10px;">
-          <summary><b>Case ${cid}</b> - <span class="bad">${reason}</span></summary>
-          <div style="margin-top:10px;">
-            <div class="muted"><b>正確測試輸入</b></div>
-            <pre style="white-space:pre-wrap;word-break:break-word;">${input}</pre>
-
-            <div class="muted"><b>正確測試輸出</b></div>
-            <pre style="white-space:pre-wrap;word-break:break-word;">${expected}</pre>
-
-            <div class="muted"><b>學生錯誤輸出</b></div>
-            <pre style="white-space:pre-wrap;word-break:break-word;">${actual}</pre>
-
-            ${err}
-          </div>
-        </details>
-      `;
-    }).join("");
-
-    detailsEl.innerHTML += `<div style="margin-top:10px;">${blocks}</div>`;
   }
 
-// ===== 改造：不找後端伺服器，直接讀取 Git 專案內的題目檔 =====
+  // ===== 🚀 讀取專案內的題目檔 =====
   async function loadProblems() {
     problemSelect.disabled = true;
     fileInput.disabled = true;
 
-    // 💡 核心改造：直接 fetch 同一個 Git 儲存庫根目錄底下的 tests_bank.json
-    // 這樣在 GitHub Pages 上網頁就能自己拿到資料，不需要開 node server.js
     const resp = await fetch("tests_bank.json");
     if (!resp.ok) throw new Error("無法讀取儲存庫中的 tests_bank.json");
     
     const data = await resp.json().catch(() => ({}));
-    
-    // 支援原本的 tests_bank 格式，如果是陣列就直接用，如果是物件就抓其中的 problems
     const list = Array.isArray(data) ? data : (data?.problems || []);
     if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
 
-    // 下拉一律用 tests_bank.json 的 name
     problemSelect.innerHTML = list
       .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}（${p.total || (p.tests ? p.tests.length : 0)} 測試）</option>`)
       .join("");
 
     problemSelect.disabled = false;
-    // 如果此時已經登入成功（改為 Git Token 驗證後），就可以開放選檔
-    // 這裡我們先保持原邏輯，等下一個 Git 驗證步驟完成
     fileInput.disabled = false; 
   }
 
@@ -516,75 +395,80 @@
     weekendEmpty.style.display = "none"; countyEmpty.style.display = "none"; nationalEmpty.style.display = "none";
   }
 
+  // ===== 🚀 改造後：不找後端，直接從公開的 grades.json 撈出個人進度 =====
   async function loadMySummary() {
-    const resp = await api("/my/summary");
-    if (!resp.ok) {
-      sideInfo.textContent = "（請先登入）";
-      clearZones();
-      return;
-    }
-
-    const data = await resp.json().catch(() => ({}));
-    const problems = Array.isArray(data?.problems) ? data.problems : [];
-    sideInfo.textContent = `題目總數：${problems.length}`;
-
-    const groups = {
-      zone1: [],
-      zone2: [],
-      zone3: [],
-      zone4: [],
-      zone5: [],
-      weekend: [],
-      county: [],
-      national: []
-    };
-
-    for (const p of problems) {
-      const track = String(p.track || "").trim() || inferTrackClient(p.id);
-      if (!groups[track]) continue;
-
-      const pass = Number(p.pass ?? 0);
-      const total = Number(p.total ?? 0);
-
-      const pct = pctFloor(pass, total);
-      const cls = colorClassByPct(pct, true);
-
-      const label = shortLabelFromName(p.name, p.id);
-
-      let order = 999999;
-      const m1 = String(label).match(/(\d+)\s*-\s*(\d+)/);
-      if (m1) order = parseInt(m1[1], 10) * 1000 + parseInt(m1[2], 10);
-      else {
-        const m2 = String(p.id || "").match(/^p(\d{2})$/i);
-        if (m2) order = parseInt(m2[1], 10);
+    try {
+      const resp = await fetch("grades.json");
+      if (!resp.ok) {
+        sideInfo.textContent = "（無歷史成績紀錄）";
+        clearZones();
+        return;
+      }
+      
+      const allGrades = await resp.json().catch(() => []);
+      const currentUsername = localStorage.getItem("uno_username") || "";
+      
+      if (!currentUsername) {
+        sideInfo.textContent = "（請先登入）";
+        clearZones();
+        return;
       }
 
-      groups[track].push({ order, html: `<li class="${cls}">${escapeHtml(label)} (${pct}%)</li>` });
+      const myRecords = allGrades.filter(record => record.username === currentUsername);
+      sideInfo.textContent = `我的作答題目數：${myRecords.length}`;
+
+      const groups = {
+        zone1: [], zone2: [], zone3: [], zone4: [], zone5: [],
+        weekend: [], county: [], national: []
+      };
+
+      for (const p of myRecords) {
+        const track = p.track || inferTrackClient(p.problem_id);
+        if (!groups[track]) continue;
+
+        const pass = Number(p.pass ?? 0);
+        const total = Number(p.total ?? 0);
+        const pct = pctFloor(pass, total);
+        const cls = colorClassByPct(pct, true);
+        
+        const optEl = problemSelect.querySelector(`option[value="${p.problem_id}"]`);
+        const label = optEl ? shortLabelFromName(optEl.textContent, p.problem_id) : p.problem_id;
+
+        let order = 999999;
+        const m2 = String(p.problem_id || "").match(/^p(\d{2})$/i);
+        if (m2) order = parseInt(m2[1], 10);
+
+        groups[track].push({ order, html: `<li class="${cls}">${escapeHtml(label)} (${pct}%)</li>` });
+      }
+
+      for (const k of Object.keys(groups)) groups[k].sort((a,b) => a.order - b.order);
+
+      zone1.innerHTML = groups.zone1.map(x => x.html).join("");
+      zone2.innerHTML = groups.zone2.map(x => x.html).join("");
+      zone3.innerHTML = groups.zone3.map(x => x.html).join("");
+      zone4.innerHTML = groups.zone4.map(x => x.html).join("");
+      zone5.innerHTML = groups.zone5.map(x => x.html).join("");
+      weekend.innerHTML = groups.weekend.map(x => x.html).join("");
+      county.innerHTML = groups.county.map(x => x.html).join("");
+      national.innerHTML = groups.national.map(x => x.html).join("");
+
+      zone1Empty.style.display = groups.zone1.length ? "none" : "block";
+      zone2Empty.style.display = groups.zone2.length ? "none" : "block";
+      zone3Empty.style.display = groups.zone3.length ? "none" : "block";
+      zone4Empty.style.display = groups.zone4.length ? "none" : "block";
+      zone5Empty.style.display = groups.zone5.length ? "none" : "block";
+      weekendEmpty.style.display = groups.weekend.length ? "none" : "block";
+      countyEmpty.style.display = groups.county.length ? "none" : "block";
+      nationalEmpty.style.display = groups.national.length ? "none" : "block";
+
+    } catch (err) {
+      console.error("讀取個人進度失敗:", err);
+      sideInfo.textContent = "（進度載入失敗）";
+      clearZones();
     }
-
-    for (const k of Object.keys(groups)) groups[k].sort((a,b) => a.order - b.order);
-
-    zone1.innerHTML = groups.zone1.map(x => x.html).join("");
-    zone2.innerHTML = groups.zone2.map(x => x.html).join("");
-    zone3.innerHTML = groups.zone3.map(x => x.html).join("");
-    zone4.innerHTML = groups.zone4.map(x => x.html).join("");
-    zone5.innerHTML = groups.zone5.map(x => x.html).join("");
-    weekend.innerHTML = groups.weekend.map(x => x.html).join("");
-    county.innerHTML = groups.county.map(x => x.html).join("");
-    national.innerHTML = groups.national.map(x => x.html).join("");
-
-    zone1Empty.style.display = groups.zone1.length ? "none" : "block";
-    zone2Empty.style.display = groups.zone2.length ? "none" : "block";
-    zone3Empty.style.display = groups.zone3.length ? "none" : "block";
-    zone4Empty.style.display = groups.zone4.length ? "none" : "block";
-    zone5Empty.style.display = groups.zone5.length ? "none" : "block";
-    weekendEmpty.style.display = groups.weekend.length ? "none" : "block";
-    countyEmpty.style.display = groups.county.length ? "none" : "block";
-    nationalEmpty.style.display = groups.national.length ? "none" : "block";
   }
 
-  // ===== grade =====
-  // =====  改造後：不找伺服器，直接 Commit 檔案進 Git 暫存區 =====
+  // ===== 🚀 改造後：將代碼 Commit 進 Git 佇列排隊 =====
   async function gradeXml(xmlText) {
     showWait();
     scoreEl.textContent = "⏳ 正在將代碼提交至 Git 倉庫中…";
@@ -593,18 +477,15 @@
     const code = xmlToJS(xmlText);
     const problemId = problemSelect.value;
     
-    // 從登入快取拿取金鑰與學生帳號
-    const gitToken = localStorage.getItem("token"); 
+    const gitToken = getToken(); 
     const studentId = localStorage.getItem("uno_username") || "anonymous";
 
-    const repoOwner = "ka2515"; // 老師的 GitHub 帳號
-    const repoName = "unojudge";  // 公開的前端倉庫名稱
+    const repoOwner = "ka2515"; 
+    const repoName = "unojudge";  
     
-    // 用時間戳與學生 ID 組成唯一的 JSON 檔名，塞進 queue 資料夾
     const timestamp = Date.now();
     const fileName = `queue/${studentId}_${problemId}_${timestamp}.json`;
     
-    // 打包準備送去給私密大腦批改的資料包
     const payload = {
       username: studentId,
       problem_id: problemId,
@@ -612,11 +493,9 @@
       submitted_at: new Date().toISOString()
     };
     
-    // 轉為 GitHub API 要求之 Base64 編碼
     const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
     const url = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fileName}`;
     
-    // 直接呼叫 GitHub 官方 API 進行 Commit
     const response = await fetch(url, {
       method: 'PUT',
       headers: {
@@ -635,7 +514,6 @@
       throw new Error(errData.message || "Git 提交失敗，請檢查金鑰或權限。");
     }
     
-    // 提示學生已經進入排隊批改
     resultCard.className = "card wait";
     scoreEl.innerHTML = `✅ <b>發送成功！</b><br><span style="font-size:16px;">程式碼已安全推入 Git 隊列。<br>後台 Actions 機器人正在排程批改中，請於 30 秒後重新整理網頁查看進度。</span>`;
   }
@@ -650,34 +528,31 @@
 
   btnLogin.addEventListener("click", openLogin);
   modalBg.addEventListener("click", (e) => { if (e.target === modalBg) closeLogin(); });
-
   btnAdmin.addEventListener("click", () => { window.open("/admin.html", "_blank"); });
 
   // ===== 🚀 改造後：純 Git 流派身分認證 =====
   btnDoLogin.addEventListener("click", async () => {
     loginMsg.textContent = "驗證中…";
     try {
-      const username = loginEmail.value.trim(); // 學生帳號 (例如 std01)
-      const token = loginPwd.value.trim();     // 老師發放的 Git 專屬交卷金鑰
+      const username = loginEmail.value.trim(); 
+      const token = loginPwd.value.trim();     
 
       if (!username || !token) throw new Error("請填寫完整帳號與金鑰");
 
-      // 關鍵：不再打 server.js，直接存在本地
       localStorage.setItem("uno_username", username);
-      setToken(token); // 沿用你原本的 setToken 儲存金鑰
+      setToken(token); 
 
-      // 虛擬一個假的使用者物件，迎合原本的 UI 渲染邏輯
       const fakeUser = { email: username, nickname: username.toUpperCase(), role: "user" };
       setGreeting(fakeUser);
       setAdminUI(fakeUser.role);
 
       btnLogin.style.display = "none";
-      btnChangePwd.style.display = "none"; // 純 Git 流派不需網頁改密碼，直接隱藏
+      btnChangePwd.style.display = "none"; 
       btnLogout.style.display = "inline-block";
 
       closeLogin();
-      await loadProblems();   // 這會跑你剛才改好的靜態讀取題目
-      await loadMySummary();  // 這會去撈 grades.json 
+      await loadProblems();   
+      await loadMySummary();  
     } catch (e) {
       loginMsg.textContent = "❌ " + (e?.message || e);
     }
@@ -685,6 +560,7 @@
 
   btnLogout.addEventListener("click", () => {
     clearToken();
+    localStorage.removeItem("uno_username");
     meEl.textContent = "尚未登入";
     meEl.classList.add("muted");
 
@@ -698,11 +574,9 @@
 
     problemSelect.disabled = true;
     fileInput.disabled = true;
-
     showError("已登出");
   });
 
-  // 選檔後自動評分
   fileInput.addEventListener("change", async (ev) => {
     const f = ev.target.files?.[0];
     if (!f) return;
@@ -717,32 +591,36 @@
     }
   });
 
-  // ===== startup =====
+  // ===== 🚀 改造後：純前端安全開機初始化 =====
   (async () => {
-    const token = getToken();
-    if (token) {
-      const r = await api("/auth/me");
-      if (r.ok) {
-        const me = await r.json().catch(() => ({}));
-        setGreeting(me);
+    try {
+      const token = getToken();
+      const username = localStorage.getItem("uno_username");
+
+      if (token && username) {
+        const fakeUser = { email: username, nickname: username.toUpperCase(), role: "user" };
+        setGreeting(fakeUser);
+        setAdminUI(fakeUser.role);
+
         btnLogin.style.display = "none";
-        btnChangePwd.style.display = "inline-block";
         btnLogout.style.display = "inline-block";
-        setAdminUI(me.role);
 
         await loadProblems();
         await loadMySummary();
         return;
-      } else {
-        clearToken();
       }
+    } catch (err) {
+      console.error("開機初始化失敗，優雅降級:", err);
     }
 
-    // 未登入狀態
     problemSelect.disabled = true;
     fileInput.disabled = true;
     sideInfo.textContent = "（請先登入）";
     clearZones();
+    
+    try {
+      await loadProblems();
+    } catch(e) {}
   })();
 </script>
 
