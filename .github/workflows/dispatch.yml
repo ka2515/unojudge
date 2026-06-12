@@ -1,17 +1,47 @@
 name: Trigger Core Grader Queue
 
+# 💡 聽從指令：當接收到網頁發射過來的 student_submit 訊號時開機
 on:
-  push:
-    paths:
-      - 'queue/**' # 💡 只有當 queue/ 資料夾底下有學生交卷的 json 檔進來時，才觸發這個機器人
+  repository_dispatch:
+    types: [student_submit]
 
 jobs:
-  dispatch:
+  handle_submission:
     runs-on: ubuntu-latest
     steps:
-      - name: Push Event to Private Core Repo
+      # 1. 搬出公開端倉庫，準備幫學生寫入 queue/
+      - name: Checkout Public Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CORE_DISPATCH_TOKEN }} # 🧠 從保險箱拿出老師的萬能金鑰
+
+      # 2. 🤖 機器人代筆：將網頁夾帶在 payload 裡的程式碼，實體寫成 JSON 檔
+      - name: Create Submission File from Payload
         run: |
-          # 拿著隱私保險箱裡的萬能鑰匙，跨界向 unojudge-core 發送開機批改指令
+          mkdir -p queue
+          TIMESTAMP=$(date +%s)
+          FILENAME="queue/${{ github.event.client_payload.username }}_${{ github.event.client_payload.problem_id }}_${TIMESTAMP}.json"
+          
+          # 將網頁傳過來的資料轉成漂亮的 JSON
+          cat << 'EOF' > $FILENAME
+          {
+            "username": "${{ github.event.client_payload.username }}",
+            "problem_id": "${{ github.event.client_payload.problem_id }}",
+            "code": ${{ json(github.event.client_payload.code) }},
+            "submitted_at": "${{ github.event.client_payload.submitted_at }}"
+          }
+          EOF
+          
+          # 自動提交存檔進 queue/
+          git config --global user.name "UnoJudge-Uploader"
+          git config --global user.email "uploader@unojudge.local"
+          git add $FILENAME
+          git commit -m "system: robotic data upload for ${{ github.event.client_payload.username }}"
+          git push origin main
+
+      # 3. 🚀 寫入完成後，叫醒私密端的評分大腦開機！
+      - name: Notify Private Core Repo to Grade
+        run: |
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.CORE_DISPATCH_TOKEN }}" \
