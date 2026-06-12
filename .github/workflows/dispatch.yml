@@ -1,6 +1,6 @@
 name: Trigger Core Grader Queue
 
-# 💡 聽從指令：當接收到網頁發射過來的 student_submit 訊號時開機
+# 聽從指令：當接收到網頁發射過來的 student_submit 訊號時開機
 on:
   repository_dispatch:
     types: [student_submit]
@@ -9,28 +9,29 @@ jobs:
   handle_submission:
     runs-on: ubuntu-latest
     steps:
-      # 1. 搬出公開端倉庫，準備幫學生寫入 queue/
+      # 1. 移駕到公開端倉庫
       - name: Checkout Public Repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.CORE_DISPATCH_TOKEN }} # 🧠 從保險箱拿出老師的萬能金鑰
+          token: ${{ secrets.CORE_DISPATCH_TOKEN }}
 
-      # 2. 🤖 機器人代筆：將網頁夾帶在 payload 裡的程式碼，實體寫成 JSON 檔
+      # 2. 🤖 機器人代筆：將信號內容安全轉為實體 JSON 檔案
       - name: Create Submission File from Payload
+        env:
+          STUDENT_CODE: ${{ github.event.client_payload.code }}
         run: |
           mkdir -p queue
           TIMESTAMP=$(date +%s)
           FILENAME="queue/${{ github.event.client_payload.username }}_${{ github.event.client_payload.problem_id }}_${TIMESTAMP}.json"
           
-          # 將網頁傳過來的資料轉成漂亮的 JSON
-          cat << 'EOF' > $FILENAME
-          {
-            "username": "${{ github.event.client_payload.username }}",
-            "problem_id": "${{ github.event.client_payload.problem_id }}",
-            "code": ${{ json(github.event.client_payload.code) }},
-            "submitted_at": "${{ github.event.client_payload.submitted_at }}"
-          }
-          EOF
+          # ✅ 修正：利用環境變數與 jq 工具，打包出絕對不會碎掉的標準 JSON 檔案
+          jq -n \
+            --arg username "${{ github.event.client_payload.username }}" \
+            --arg problem_id "${{ github.event.client_payload.problem_id }}" \
+            --arg code "$STUDENT_CODE" \
+            --arg submitted_at "${{ github.event.client_payload.submitted_at }}" \
+            '{username: $username, problem_id: $problem_id, code: $code, submitted_at: $submitted_at}' \
+            > $FILENAME
           
           # 自動提交存檔進 queue/
           git config --global user.name "UnoJudge-Uploader"
@@ -39,7 +40,7 @@ jobs:
           git commit -m "system: robotic data upload for ${{ github.event.client_payload.username }}"
           git push origin main
 
-      # 3. 🚀 寫入完成後，叫醒私密端的評分大腦開機！
+      # 3. 🚀 叫醒私密端的評分大腦開機！
       - name: Notify Private Core Repo to Grade
         run: |
           curl -X POST \
