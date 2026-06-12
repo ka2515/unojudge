@@ -1,0 +1,710 @@
+<!-- 計算方塊版 -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>114資科賽測試系統</title>
+
+  <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+  <script src="https://unpkg.com/blockly/javascript.min.js"></script>
+  <script src="https://unpkg.com/blockly/msg/zh-hant.js"></script>
+
+  <style>
+    body { font-family: sans-serif; margin: 18px; }
+    h2 { margin: 0 0 10px 0; }
+    .layout { display:flex; gap:16px; align-items:flex-start; }
+    .main { flex: 1; max-width: 900px; }
+    .side { width: 320px; border:1px solid #ddd; border-radius:12px; padding:12px; }
+    .box { border: 1px solid #ddd; padding: 14px; border-radius: 12px; }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+    /* ✅ 放大 1.5 倍 */
+    select, input[type="file"], button, input[type="email"], input[type="password"] {
+      font-size: 21px;
+      padding: 9px 10px;
+    }
+
+    button { cursor:pointer; }
+    .score { font-size: 24px; margin-top: 14px; }
+    .ok { color: #0a7; }
+    .bad { color: #c22; }
+    .warn { color: #b58900; } /* ★黃字 */
+    .hint { color: #444; font-size: 14px; margin-top: 8px; }
+    .muted { color: #777; }
+    .card { border-radius: 12px; padding: 14px; margin-top: 14px; }
+    .card.wait { background: #f5f5f5; }
+    .card.ok { background: #eafff4; border: 1px solid #8ddfc1; }
+    .card.bad { background: #fff0f0; border: 1px solid #f1a1a1; }
+
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+    .pill { border:1px solid #ddd; border-radius:999px; padding:4px 10px; font-size:14px; }
+    .list { margin:0; padding-left: 20px; }
+    .list li { margin: 6px 0; }
+
+    /* ★右側分區外觀 */
+    .zone { border:1px solid #eee; border-radius:12px; padding:10px; margin-top:10px; }
+    .zone-title { font-weight:700; margin-bottom:6px; }
+    .zone-empty { color:#777; font-size: 14px; margin: 6px 0; }
+
+    /* login modal */
+    .modal-bg {
+      position:fixed; inset:0; background: rgba(0,0,0,.35);
+      display:none; align-items:center; justify-content:center;
+    }
+    .modal {
+      width: min(520px, 92vw);
+      background: #fff; border-radius: 14px; padding: 14px; border: 1px solid #ddd;
+    }
+    .modal h3 { margin: 0 0 10px 0; }
+    .modal .row2 { display:flex; flex-direction:column; gap:10px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h2>114資科賽測試系統</h2>
+  <div>
+    <span id="me" class="pill muted">尚未登入</span>
+    <button id="btnLogin">登入</button>
+    <button id="btnChangePwd" style="display:none;">更改密碼</button>
+    <button id="btnAdmin" style="display:none;">後台</button>
+    <button id="btnLogout" style="display:none;">登出</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="main">
+    <div class="box">
+      <div class="row">
+        <div>
+          <label for="problemSelect"><b>選擇題目：</b></label>
+          <select id="problemSelect" disabled>
+            <option>載入題目清單中…</option>
+          </select>
+        </div>
+
+        <div>
+          <input type="file" id="fileInput" accept=".m5,.xml" disabled />
+        </div>
+      </div>
+
+      <div class="hint muted">
+        操作方式：登入 → 選題目 → 上傳 .m5（選檔後自動評分）
+      </div>
+
+      <div id="resultCard" style="display:none;">
+        <div class="score" id="score"></div>
+        <div id="details"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div style="font-weight:700; margin-bottom:8px;">我的題目進度</div>
+    <div class="muted" id="sideInfo">（請先登入）</div>
+
+    <!-- ★依 track 分區（固定預留週末/縣賽/國賽） -->
+    <div class="zone">
+      <div class="zone-title">第 1 區</div>
+      <ul class="list" id="zone1"></ul>
+      <div class="zone-empty" id="zone1Empty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">第 2 區</div>
+      <ul class="list" id="zone2"></ul>
+      <div class="zone-empty" id="zone2Empty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">第 3 區</div>
+      <ul class="list" id="zone3"></ul>
+      <div class="zone-empty" id="zone3Empty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">第 4 區</div>
+      <ul class="list" id="zone4"></ul>
+      <div class="zone-empty" id="zone4Empty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">第 5 區</div>
+      <ul class="list" id="zone5"></ul>
+      <div class="zone-empty" id="zone5Empty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">週末區</div>
+      <ul class="list" id="weekend"></ul>
+      <div class="zone-empty" id="weekendEmpty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">縣賽區</div>
+      <ul class="list" id="county"></ul>
+      <div class="zone-empty" id="countyEmpty" style="display:none;">（尚無題目）</div>
+    </div>
+
+    <div class="zone">
+      <div class="zone-title">國賽區</div>
+      <ul class="list" id="national"></ul>
+      <div class="zone-empty" id="nationalEmpty" style="display:none;">（尚無題目）</div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3>登入</h3>
+    <div class="row2">
+      <input id="loginEmail" type="email" placeholder="Email" autocomplete="username" />
+      <input id="loginPwd" type="password" placeholder="密碼" autocomplete="current-password" />
+      <button id="btnDoLogin">登入</button>
+      <div class="muted" id="loginMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-bg" id="pwdModalBg">
+  <div class="modal">
+    <h3>更改密碼</h3>
+    <div class="row2">
+      <input id="oldPwd" type="password" placeholder="舊密碼" autocomplete="current-password" />
+      <input id="newPwd" type="password" placeholder="新密碼（至少 6 碼）" autocomplete="new-password" />
+      <input id="newPwd2" type="password" placeholder="再次輸入新密碼" autocomplete="new-password" />
+      <button id="btnDoChangePwd">確認更改</button>
+      <div class="muted" id="pwdMsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  try { Blockly.setLocale(Blockly.Msg); } catch (e) {}
+
+  // ✅ 修改後的純 Git 串接寫法（先將 API 路由名稱保留，稍後直接對接新架構）
+  const BASE_URL = "https://miniature-goggles-v695ppr4rx65f6qwv-8080.app.github.dev/"; // 自動適應 GitHub Pages 網址
+
+  const problemSelect = document.getElementById("problemSelect");
+  const fileInput = document.getElementById("fileInput");
+  const scoreEl = document.getElementById("score");
+  const detailsEl = document.getElementById("details");
+  const resultCard = document.getElementById("resultCard");
+  const meEl = document.getElementById("me");
+  const btnLogin = document.getElementById("btnLogin");
+  const btnChangePwd = document.getElementById("btnChangePwd");
+  const btnLogout = document.getElementById("btnLogout");
+  const btnAdmin = document.getElementById("btnAdmin");
+
+  const modalBg = document.getElementById("modalBg");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPwd = document.getElementById("loginPwd");
+  const btnDoLogin = document.getElementById("btnDoLogin");
+  const loginMsg = document.getElementById("loginMsg");
+
+  const sideInfo = document.getElementById("sideInfo");
+
+  const pwdModalBg = document.getElementById("pwdModalBg");
+  const oldPwd = document.getElementById("oldPwd");
+  const newPwd = document.getElementById("newPwd");
+  const newPwd2 = document.getElementById("newPwd2");
+  const btnDoChangePwd = document.getElementById("btnDoChangePwd");
+  const pwdMsg = document.getElementById("pwdMsg");
+
+  // ★右側分區 DOM
+  const zone1 = document.getElementById("zone1");
+  const zone2 = document.getElementById("zone2");
+  const zone3 = document.getElementById("zone3");
+  const zone4 = document.getElementById("zone4");
+  const zone5 = document.getElementById("zone5");
+  const weekend = document.getElementById("weekend");
+  const county = document.getElementById("county");
+  const national = document.getElementById("national");
+
+  const zone1Empty = document.getElementById("zone1Empty");
+  const zone2Empty = document.getElementById("zone2Empty");
+  const zone3Empty = document.getElementById("zone3Empty");
+  const zone4Empty = document.getElementById("zone4Empty");
+  const zone5Empty = document.getElementById("zone5Empty");
+  const weekendEmpty = document.getElementById("weekendEmpty");
+  const countyEmpty = document.getElementById("countyEmpty");
+  const nationalEmpty = document.getElementById("nationalEmpty");
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function openPwdModal() {
+    pwdMsg.textContent = "";
+    oldPwd.value = "";
+    newPwd.value = "";
+    newPwd2.value = "";
+    pwdModalBg.style.display = "flex";
+    oldPwd.focus();
+  }
+  function closePwdModal() { pwdModalBg.style.display = "none"; }
+
+  function setAdminUI(role) {
+    btnAdmin.style.display = (role === "admin") ? "inline-block" : "none";
+  }
+
+  btnChangePwd.addEventListener("click", openPwdModal);
+  pwdModalBg.addEventListener("click", (e) => { if (e.target === pwdModalBg) closePwdModal(); });
+
+  btnDoChangePwd.addEventListener("click", async () => {
+    try {
+      pwdMsg.textContent = "處理中…";
+      const a = oldPwd.value;
+      const b = newPwd.value;
+      const c = newPwd2.value;
+
+      if (!a || !b || !c) throw new Error("請填寫完整");
+      if (b.length < 6) throw new Error("新密碼至少 6 碼");
+      if (b !== c) throw new Error("兩次新密碼不一致");
+
+      const resp = await api("/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPassword: a, newPassword: b }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || "更改失敗");
+
+      pwdMsg.textContent = "✅ 更改成功";
+      setTimeout(() => closePwdModal(), 500);
+    } catch (e) {
+      pwdMsg.textContent = "❌ " + (e?.message || e);
+    }
+  });
+
+  // ===== token =====
+  function getToken() { return localStorage.getItem("token") || ""; }
+  function setToken(t) { localStorage.setItem("token", t); }
+  function clearToken() { localStorage.removeItem("token"); }
+
+  async function api(path, options = {}) {
+    const headers = options.headers || {};
+    const token = getToken();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(BASE_URL + path, { ...options, headers });
+  }
+
+  // ===== Blockly: m5 XML -> JS =====
+  function getJSGenerator() {
+    return Blockly.JavaScript || Blockly.javascriptGenerator;
+  }
+  function patchGenerators(JS) {
+    JS["text_print"] = function (block) {
+      const msg = JS.valueToCode(block, "TEXT", JS.ORDER_NONE) || "''";
+      return `print(${msg});\n`;
+    };
+    JS["text_prompt_ext"] = function () {
+      return ["readLine()", JS.ORDER_FUNCTION_CALL];
+    };
+  }
+  function xmlToJS(xml) {
+    const JS = getJSGenerator();
+    if (!JS) throw new Error("找不到 JavaScript generator");
+    patchGenerators(JS);
+
+    // ✅ 相容不同版本/客製 Blockly：text_length1 -> text_length
+    if (!Blockly.Blocks["text_length1"] && Blockly.Blocks["text_length"]) {
+      Blockly.Blocks["text_length1"] = Blockly.Blocks["text_length"];
+    }
+    if (JS && !JS["text_length1"] && JS["text_length"]) {
+      JS["text_length1"] = JS["text_length"];
+    }
+
+    const workspace = new Blockly.Workspace();
+
+    let dom;
+    if (Blockly.utils?.xml?.textToDom) dom = Blockly.utils.xml.textToDom(xml);
+    else if (Blockly.Xml?.textToDom) dom = Blockly.Xml.textToDom(xml);
+    else dom = new DOMParser().parseFromString(xml, "text/xml").documentElement;
+
+    if (Blockly.Xml?.domToWorkspace) Blockly.Xml.domToWorkspace(dom, workspace);
+    else if (Blockly.Xml?.appendDomToWorkspace) Blockly.Xml.appendDomToWorkspace(dom, workspace);
+    else throw new Error("找不到 Blockly XML 匯入方法");
+
+    // ★B版：在每個 statement 前插入 __tick()
+    JS.STATEMENT_PREFIX = "__tick();\n";
+    JS.addReservedWords("__tick");
+
+    return JS.workspaceToCode(workspace);
+  }
+
+  // ===== UI helpers =====
+  function setGreeting(me) {
+    const nn = String(me?.nickname || "").trim();
+    const email = String(me?.email || "").trim();
+    const who = nn || email || "使用者";
+    meEl.textContent = `${who} 您好，繼續一起努力吧！`;
+    meEl.classList.remove("muted");
+  }
+
+  function showWait() {
+    resultCard.style.display = "block";
+    resultCard.className = "card wait";
+    scoreEl.textContent = "⏳ 評分中，請稍候…";
+    detailsEl.innerHTML = "";
+  }
+
+  function showError(msg) {
+    resultCard.style.display = "block";
+    resultCard.className = "card bad";
+    scoreEl.textContent = "❌ " + msg;
+    detailsEl.innerHTML = "";
+  }
+
+  // ✅ renderResult：競賽不顯示測資內容
+  function renderResult(data) {
+    resultCard.style.display = "block";
+    resultCard.className = (data.pass === data.total) ? "card ok" : "card bad";
+
+    const stepText = (typeof data.execSteps === "number")
+      ? ` <span class="muted">（步數：${data.execSteps}）</span>`
+      : "";
+
+    scoreEl.innerHTML = `成績：<b>${data.pass}/${data.total}</b>${stepText}`;
+
+    // Case 對錯清單（競賽/練習都顯示）
+    const lines = (data.results || []).map(r => {
+      if (r.ok) return `<li class="ok">Case ${escapeHtml(r.id)}: 正確</li>`;
+      if (r.error?.includes("__EXEC_STEP_LIMIT__")) return `<li class="bad">Case ${escapeHtml(r.id)}: 步數超限</li>`;
+      if (r.error?.includes("OutputLimit")) return `<li class="bad">Case ${escapeHtml(r.id)}: 輸出過多</li>`;
+      if (r.error?.includes("timed out")) return `<li class="bad">Case ${escapeHtml(r.id)}: 執行逾時</li>`;
+      return `<li class="bad">Case ${escapeHtml(r.id)}: 錯誤</li>`;
+    }).join("");
+
+    detailsEl.innerHTML = `<ul>${lines}</ul>`;
+
+    // 依 mode 決定是否顯示測資內容
+    const mode = String(data.mode || "").toLowerCase();
+    const isPractice = (mode !== "contest"); // 舊版 server 沒回 mode 時，保守視為練習
+
+    const failures = Array.isArray(data.failures) ? data.failures : [];
+    if (!failures.length) return;
+
+    if (!isPractice) {
+      detailsEl.innerHTML += `
+        <div class="muted" style="margin-top:10px;">
+          ⚠️ 目前為「競賽模式」，不顯示測試輸入/正確輸出/學生輸出。
+        </div>
+      `;
+      return;
+    }
+
+    // 練習模式：顯示 input / expected / actual
+    function esc(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    const blocks = failures.map(f => {
+      const reason = esc(f.reason || "WA");
+      const cid = esc(f.id || "");
+      const input = esc(f.input || "");
+      const expected = esc(f.expected || "");
+      const actual = esc(f.actual || "");
+      const err = f.error
+        ? `<div class="muted"><b>錯誤訊息</b></div><pre style="white-space:pre-wrap;word-break:break-word;">${esc(f.error)}</pre>`
+        : "";
+
+      return `
+        <details style="margin:10px 0; border:1px solid #eee; border-radius:12px; padding:10px;">
+          <summary><b>Case ${cid}</b> - <span class="bad">${reason}</span></summary>
+          <div style="margin-top:10px;">
+            <div class="muted"><b>正確測試輸入</b></div>
+            <pre style="white-space:pre-wrap;word-break:break-word;">${input}</pre>
+
+            <div class="muted"><b>正確測試輸出</b></div>
+            <pre style="white-space:pre-wrap;word-break:break-word;">${expected}</pre>
+
+            <div class="muted"><b>學生錯誤輸出</b></div>
+            <pre style="white-space:pre-wrap;word-break:break-word;">${actual}</pre>
+
+            ${err}
+          </div>
+        </details>
+      `;
+    }).join("");
+
+    detailsEl.innerHTML += `<div style="margin-top:10px;">${blocks}</div>`;
+  }
+
+  // ===== load problems =====
+  async function loadProblems() {
+    problemSelect.disabled = true;
+    fileInput.disabled = true;
+
+    const resp = await fetch(`${BASE_URL}/problems`);
+    const data = await resp.json().catch(() => ({}));
+    const list = data?.problems || [];
+    if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
+
+    // 下拉一律用 tests_bank.json 的 name
+    problemSelect.innerHTML = list
+      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}（${p.total} 測試）</option>`)
+      .join("");
+
+    problemSelect.disabled = false;
+    fileInput.disabled = false;
+  }
+
+  // ===== summary (right side) =====
+  function pctFloor(pass, total) {
+    const p = Number(pass ?? 0);
+    const t = Number(total ?? 0);
+    if (!t) return 0;
+    return Math.floor((p / t) * 100);
+  }
+
+  function colorClassByPct(pct, hasAnySubmit) {
+    if (!hasAnySubmit) return "";
+    if (pct >= 100) return "ok";
+    if (pct >= 50) return "warn";
+    return "bad";
+  }
+
+  function shortLabelFromName(name, fallbackId) {
+    const s = String(name || "").trim();
+    const idx = s.indexOf("：");
+    if (idx >= 0) {
+      const t = s.slice(idx + 1).trim();
+      if (t) return t;
+    }
+    return s || fallbackId || "題目";
+  }
+
+  function inferTrackClient(problemId) {
+    const m = String(problemId || "").match(/^p(\d{2})$/i);
+    if (!m) return "misc";
+    const n = parseInt(m[1], 10);
+    if (n >= 1 && n <= 7) return "zone1";
+    if (n >= 8 && n <= 11) return "zone2";
+    if (n >= 12 && n <= 15) return "zone3";
+    if (n >= 16 && n <= 20) return "zone4";
+    if (n >= 21 && n <= 24) return "zone5";
+    return "weekend";
+  }
+
+  function clearZones() {
+    zone1.innerHTML = ""; zone2.innerHTML = ""; zone3.innerHTML = ""; zone4.innerHTML = ""; zone5.innerHTML = "";
+    weekend.innerHTML = ""; county.innerHTML = ""; national.innerHTML = "";
+    zone1Empty.style.display = "none"; zone2Empty.style.display = "none"; zone3Empty.style.display = "none";
+    zone4Empty.style.display = "none"; zone5Empty.style.display = "none";
+    weekendEmpty.style.display = "none"; countyEmpty.style.display = "none"; nationalEmpty.style.display = "none";
+  }
+
+  async function loadMySummary() {
+    const resp = await api("/my/summary");
+    if (!resp.ok) {
+      sideInfo.textContent = "（請先登入）";
+      clearZones();
+      return;
+    }
+
+    const data = await resp.json().catch(() => ({}));
+    const problems = Array.isArray(data?.problems) ? data.problems : [];
+    sideInfo.textContent = `題目總數：${problems.length}`;
+
+    const groups = {
+      zone1: [],
+      zone2: [],
+      zone3: [],
+      zone4: [],
+      zone5: [],
+      weekend: [],
+      county: [],
+      national: []
+    };
+
+    for (const p of problems) {
+      const track = String(p.track || "").trim() || inferTrackClient(p.id);
+      if (!groups[track]) continue;
+
+      const pass = Number(p.pass ?? 0);
+      const total = Number(p.total ?? 0);
+
+      const pct = pctFloor(pass, total);
+      const cls = colorClassByPct(pct, true);
+
+      const label = shortLabelFromName(p.name, p.id);
+
+      let order = 999999;
+      const m1 = String(label).match(/(\d+)\s*-\s*(\d+)/);
+      if (m1) order = parseInt(m1[1], 10) * 1000 + parseInt(m1[2], 10);
+      else {
+        const m2 = String(p.id || "").match(/^p(\d{2})$/i);
+        if (m2) order = parseInt(m2[1], 10);
+      }
+
+      groups[track].push({ order, html: `<li class="${cls}">${escapeHtml(label)} (${pct}%)</li>` });
+    }
+
+    for (const k of Object.keys(groups)) groups[k].sort((a,b) => a.order - b.order);
+
+    zone1.innerHTML = groups.zone1.map(x => x.html).join("");
+    zone2.innerHTML = groups.zone2.map(x => x.html).join("");
+    zone3.innerHTML = groups.zone3.map(x => x.html).join("");
+    zone4.innerHTML = groups.zone4.map(x => x.html).join("");
+    zone5.innerHTML = groups.zone5.map(x => x.html).join("");
+    weekend.innerHTML = groups.weekend.map(x => x.html).join("");
+    county.innerHTML = groups.county.map(x => x.html).join("");
+    national.innerHTML = groups.national.map(x => x.html).join("");
+
+    zone1Empty.style.display = groups.zone1.length ? "none" : "block";
+    zone2Empty.style.display = groups.zone2.length ? "none" : "block";
+    zone3Empty.style.display = groups.zone3.length ? "none" : "block";
+    zone4Empty.style.display = groups.zone4.length ? "none" : "block";
+    zone5Empty.style.display = groups.zone5.length ? "none" : "block";
+    weekendEmpty.style.display = groups.weekend.length ? "none" : "block";
+    countyEmpty.style.display = groups.county.length ? "none" : "block";
+    nationalEmpty.style.display = groups.national.length ? "none" : "block";
+  }
+
+  // ===== grade =====
+  async function gradeXml(xmlText) {
+    showWait();
+
+    // 相容：text_length1 → text_length
+    xmlText = xmlText.replaceAll('type="text_length1"', 'type="text_length"');
+
+    const code = xmlToJS(xmlText);
+    const problemId = problemSelect.value;
+
+    // ✅ mode 不再由前端決定（由後台 config.json 決定）
+    const resp = await api("/grade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, problemId })
+    });
+
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data?.error || "server error");
+
+    renderResult(data);
+    await loadMySummary();
+  }
+
+  // ===== login modal =====
+  function openLogin() {
+    loginMsg.textContent = "";
+    modalBg.style.display = "flex";
+    loginEmail.focus();
+  }
+  function closeLogin() { modalBg.style.display = "none"; }
+
+  btnLogin.addEventListener("click", openLogin);
+  modalBg.addEventListener("click", (e) => { if (e.target === modalBg) closeLogin(); });
+
+  btnAdmin.addEventListener("click", () => { window.open("/admin.html", "_blank"); });
+
+  btnDoLogin.addEventListener("click", async () => {
+    loginMsg.textContent = "登入中…";
+    try {
+      const email = loginEmail.value.trim();
+      const password = loginPwd.value;
+
+      const resp = await fetch(`${BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data?.error || "登入失敗");
+
+      setToken(data.token);
+      setGreeting(data);
+      setAdminUI(data.role);
+
+      btnLogin.style.display = "none";
+      btnChangePwd.style.display = "inline-block";
+      btnLogout.style.display = "inline-block";
+
+      closeLogin();
+      await loadProblems();
+      await loadMySummary();
+    } catch (e) {
+      loginMsg.textContent = "❌ " + (e?.message || e);
+    }
+  });
+
+  btnLogout.addEventListener("click", () => {
+    clearToken();
+    meEl.textContent = "尚未登入";
+    meEl.classList.add("muted");
+
+    btnLogin.style.display = "inline-block";
+    btnChangePwd.style.display = "none";
+    btnLogout.style.display = "none";
+    btnAdmin.style.display = "none";
+
+    sideInfo.textContent = "（請先登入）";
+    clearZones();
+
+    problemSelect.disabled = true;
+    fileInput.disabled = true;
+
+    showError("已登出");
+  });
+
+  // 選檔後自動評分
+  fileInput.addEventListener("change", async (ev) => {
+    const f = ev.target.files?.[0];
+    if (!f) return;
+
+    try {
+      const xmlText = await f.text();
+      await gradeXml(xmlText);
+    } catch (e) {
+      showError("評分失敗：" + (e?.message || e));
+    } finally {
+      fileInput.value = "";
+    }
+  });
+
+  // ===== startup =====
+  (async () => {
+    const token = getToken();
+    if (token) {
+      const r = await api("/auth/me");
+      if (r.ok) {
+        const me = await r.json().catch(() => ({}));
+        setGreeting(me);
+        btnLogin.style.display = "none";
+        btnChangePwd.style.display = "inline-block";
+        btnLogout.style.display = "inline-block";
+        setAdminUI(me.role);
+
+        await loadProblems();
+        await loadMySummary();
+        return;
+      } else {
+        clearToken();
+      }
+    }
+
+    // 未登入狀態
+    problemSelect.disabled = true;
+    fileInput.disabled = true;
+    sideInfo.textContent = "（請先登入）";
+    clearZones();
+  })();
+</script>
+
+</body>
+</html>
