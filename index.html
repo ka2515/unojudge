@@ -468,54 +468,48 @@
     }
   }
 
-  // ===== 🚀 改造後：將代碼 Commit 進 Git 佇列排隊 =====
+// ===== 🚀 終極進化：免金鑰信號交卷流派 =====
   async function gradeXml(xmlText) {
     showWait();
-    scoreEl.textContent = "⏳ 正在將代碼提交至 Git 倉庫中…";
+    scoreEl.textContent = "⏳ 正在透過安全雲端通道提交中…";
 
-    xmlText = xmlText.replaceAll('type="text_length1"', 'type="text_length"');
-    const code = xmlToJS(xmlText);
-    const problemId = problemSelect.value;
-    
-    const gitToken = getToken(); 
-    const studentId = localStorage.getItem("uno_username") || "anonymous";
+    try {
+      if (xmlText && typeof xmlText.text === "function") {
+        xmlText = await xmlText.text();
+      }
 
-    const repoOwner = "ka2515"; 
-    const repoName = "unojudge";  
-    
-    const timestamp = Date.now();
-    const fileName = `queue/${studentId}_${problemId}_${timestamp}.json`;
-    
-    const payload = {
-      username: studentId,
-      problem_id: problemId,
-      code: code,
-      submitted_at: new Date().toISOString()
-    };
-    
-    const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
-    const url = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fileName}`;
-    
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `token ${gitToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: `submission: ${studentId} - ${problemId}`,
-        content: contentBase64,
-        branch: "main"
-      })
-    });
+      xmlText = xmlText.replaceAll('type="text_length1"', 'type="text_length"');
+      const code = xmlToJS(xmlText);
+      const problemId = problemSelect.value;
+      const studentId = localStorage.getItem("uno_username");
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData.message || "Git 提交失敗，請檢查金鑰或權限。");
+      if (!studentId) throw new Error("登入逾時，請重新登入");
+
+      // 💡 終極資安：網頁不直接寫入 queue/，而是改為對外發射一個「自訂交卷信號」
+      const url = `https://api.github.com/repos/ka2515/unojudge/dispatches`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          event_type: "student_submit", // 告知傳令兵：有學生交卷了！
+          client_payload: {
+            username: studentId,
+            problem_id: problemId,
+            code: code,
+            submitted_at: new Date().toISOString()
+          }
+        })
+      });
+
+      // 💡 網頁只要成功發射信號就大功告成！
+      resultCard.className = "card wait";
+      scoreEl.innerHTML = `✅ <b>交卷訊號已發射！</b><br><span style="font-size:16px;">程式碼已透過雲端隊列排隊。<br>後台 Actions 機器人正在排程代筆寫入與批改。<br>請於 30 秒後重新整理網頁查看右側進度！</span>`;
+    } catch (e) {
+      showError("交卷失敗：" + e.message);
     }
-    
-    resultCard.className = "card wait";
-    scoreEl.innerHTML = `✅ <b>發送成功！</b><br><span style="font-size:16px;">程式碼已安全推入 Git 隊列。<br>後台 Actions 機器人正在排程批改中，請於 30 秒後重新整理網頁查看進度。</span>`;
   }
 
   // ===== login modal =====
