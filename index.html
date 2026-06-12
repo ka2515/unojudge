@@ -584,27 +584,60 @@
   }
 
   // ===== grade =====
+  // =====  改造後：不找伺服器，直接 Commit 檔案進 Git 暫存區 =====
   async function gradeXml(xmlText) {
     showWait();
+    scoreEl.textContent = "⏳ 正在將代碼提交至 Git 倉庫中…";
 
-    // 相容：text_length1 → text_length
     xmlText = xmlText.replaceAll('type="text_length1"', 'type="text_length"');
-
     const code = xmlToJS(xmlText);
     const problemId = problemSelect.value;
+    
+    // 從登入快取拿取金鑰與學生帳號
+    const gitToken = localStorage.getItem("token"); 
+    const studentId = localStorage.getItem("uno_username") || "anonymous";
 
-    // ✅ mode 不再由前端決定（由後台 config.json 決定）
-    const resp = await api("/grade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, problemId })
+    const repoOwner = "ka2515"; // 老師的 GitHub 帳號
+    const repoName = "unojudge";  // 公開的前端倉庫名稱
+    
+    // 用時間戳與學生 ID 組成唯一的 JSON 檔名，塞進 queue 資料夾
+    const timestamp = Date.now();
+    const fileName = `queue/${studentId}_${problemId}_${timestamp}.json`;
+    
+    // 打包準備送去給私密大腦批改的資料包
+    const payload = {
+      username: studentId,
+      problem_id: problemId,
+      code: code,
+      submitted_at: new Date().toISOString()
+    };
+    
+    // 轉為 GitHub API 要求之 Base64 編碼
+    const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+    const url = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${fileName}`;
+    
+    // 直接呼叫 GitHub 官方 API 進行 Commit
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${gitToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: `submission: ${studentId} - ${problemId}`,
+        content: contentBase64,
+        branch: "main"
+      })
     });
 
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data?.error || "server error");
-
-    renderResult(data);
-    await loadMySummary();
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || "Git 提交失敗，請檢查金鑰或權限。");
+    }
+    
+    // 提示學生已經進入排隊批改
+    resultCard.className = "card wait";
+    scoreEl.innerHTML = `✅ <b>發送成功！</b><br><span style="font-size:16px;">程式碼已安全推入 Git 隊列。<br>後台 Actions 機器人正在排程批改中，請於 30 秒後重新整理網頁查看進度。</span>`;
   }
 
   // ===== login modal =====
@@ -620,32 +653,31 @@
 
   btnAdmin.addEventListener("click", () => { window.open("/admin.html", "_blank"); });
 
+  // ===== 🚀 改造後：純 Git 流派身分認證 =====
   btnDoLogin.addEventListener("click", async () => {
-    loginMsg.textContent = "登入中…";
+    loginMsg.textContent = "驗證中…";
     try {
-      const email = loginEmail.value.trim();
-      const password = loginPwd.value;
+      const username = loginEmail.value.trim(); // 學生帳號 (例如 std01)
+      const token = loginPwd.value.trim();     // 老師發放的 Git 專屬交卷金鑰
 
-      const resp = await fetch(`${BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
+      if (!username || !token) throw new Error("請填寫完整帳號與金鑰");
 
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(data?.error || "登入失敗");
+      // 關鍵：不再打 server.js，直接存在本地
+      localStorage.setItem("uno_username", username);
+      setToken(token); // 沿用你原本的 setToken 儲存金鑰
 
-      setToken(data.token);
-      setGreeting(data);
-      setAdminUI(data.role);
+      // 虛擬一個假的使用者物件，迎合原本的 UI 渲染邏輯
+      const fakeUser = { email: username, nickname: username.toUpperCase(), role: "user" };
+      setGreeting(fakeUser);
+      setAdminUI(fakeUser.role);
 
       btnLogin.style.display = "none";
-      btnChangePwd.style.display = "inline-block";
+      btnChangePwd.style.display = "none"; // 純 Git 流派不需網頁改密碼，直接隱藏
       btnLogout.style.display = "inline-block";
 
       closeLogin();
-      await loadProblems();
-      await loadMySummary();
+      await loadProblems();   // 這會跑你剛才改好的靜態讀取題目
+      await loadMySummary();  // 這會去撈 grades.json 
     } catch (e) {
       loginMsg.textContent = "❌ " + (e?.message || e);
     }
