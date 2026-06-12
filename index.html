@@ -444,23 +444,31 @@
     detailsEl.innerHTML += `<div style="margin-top:10px;">${blocks}</div>`;
   }
 
-  // ===== load problems =====
+// ===== 改造：不找後端伺服器，直接讀取 Git 專案內的題目檔 =====
   async function loadProblems() {
     problemSelect.disabled = true;
     fileInput.disabled = true;
 
-    const resp = await fetch(`${BASE_URL}/problems`);
+    // 💡 核心改造：直接 fetch 同一個 Git 儲存庫根目錄底下的 tests_bank.json
+    // 這樣在 GitHub Pages 上網頁就能自己拿到資料，不需要開 node server.js
+    const resp = await fetch("tests_bank.json");
+    if (!resp.ok) throw new Error("無法讀取儲存庫中的 tests_bank.json");
+    
     const data = await resp.json().catch(() => ({}));
-    const list = data?.problems || [];
+    
+    // 支援原本的 tests_bank 格式，如果是陣列就直接用，如果是物件就抓其中的 problems
+    const list = Array.isArray(data) ? data : (data?.problems || []);
     if (!Array.isArray(list) || list.length === 0) throw new Error("找不到題目清單");
 
     // 下拉一律用 tests_bank.json 的 name
     problemSelect.innerHTML = list
-      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}（${p.total} 測試）</option>`)
+      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}（${p.total || (p.tests ? p.tests.length : 0)} 測試）</option>`)
       .join("");
 
     problemSelect.disabled = false;
-    fileInput.disabled = false;
+    // 如果此時已經登入成功（改為 Git Token 驗證後），就可以開放選檔
+    // 這裡我們先保持原邏輯，等下一個 Git 驗證步驟完成
+    fileInput.disabled = false; 
   }
 
   // ===== summary (right side) =====
