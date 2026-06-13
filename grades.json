@@ -27,5 +27,34 @@
       }
     ],
     "submitted_at": "2026-06-13T01:51:06.545Z"
+  },
+  {
+    "username": "admin",
+    "problem_id": "p08",
+    "pass": 5,
+    "total": 5,
+    "results": [
+      {
+        "id": 1,
+        "ok": true
+      },
+      {
+        "id": 2,
+        "ok": true
+      },
+      {
+        "id": 3,
+        "ok": true
+      },
+      {
+        "id": 4,
+        "ok": true
+      },
+      {
+        "id": 5,
+        "ok": true
+      }
+    ],
+    "submitted_at": "2026-06-13T01:57:04.292Z"
   }
 ]
