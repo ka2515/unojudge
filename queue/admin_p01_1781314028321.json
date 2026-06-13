@@ -1,0 +1,6 @@
+{
+  "username": "admin",
+  "problem_id": "p01",
+  "code": "var my_1;\n\n\n__tick();\nmy_1 = Number(window.prompt('請輸入文字'));\n__tick();\nwhile (!(my_1 == 0)) {\n  __tick();\n  window.alert(my_1);\n  __tick();\n  my_1 = Math.floor(my_1 / 10);\n  __tick();\n}\n",
+  "submitted_at": "2026-06-13T01:27:05.900Z"
+}
