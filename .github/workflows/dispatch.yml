@@ -1,4 +1,18 @@
+name: Trigger Core Grader Queue
+
 on:
   push:
     branches:
       - main
+
+jobs:
+  trigger-core:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Dispatch Signal to Private Brain
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.UNOJUDGE_TOKEN }}
+          repository: ka2515/unojudge-core
+          event-type: student_submit
+          client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
