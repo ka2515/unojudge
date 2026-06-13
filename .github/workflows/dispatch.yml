@@ -12,7 +12,7 @@ jobs:
       - name: Send Dispatch Signal to Private Brain
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.UNOJUDGE_TOKEN }}
+          token: ${{ secrets.CORE_DISPATCH_TOKEN }}
           repository: ka2515/unojudge-core
           event-type: student_submit
           client-payload: '{"ref": "${{ github.ref }}", "sha": "${{ github.sha }}"}'
