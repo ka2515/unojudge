@@ -469,7 +469,7 @@
     }
   }
 
-  // ===== 🚀 終極進化：免金鑰信號交卷流派 =====
+  // ===== 免金鑰 Issue 觸發交卷流派 =====
   async function gradeXml(xmlText) {
     showWait();
     scoreEl.textContent = "⏳ 正在透過安全雲端通道提交中…";
@@ -486,28 +486,30 @@
 
       if (!studentId) throw new Error("登入逾時，請重新登入");
 
-      // 💡 終極資安：網頁不直接寫入 queue/，而是改為對外發射一個「自訂交卷信號」
-      const url = `https://api.github.com/repos/ka2515/unojudge/dispatches`;
+      // 🧠 打包學生的代碼封包，準備做成 Issue
+      const payload = {
+        username: studentId,
+        problem_id: problemId,
+        code: code,
+        submitted_at: new Date().toISOString()
+      };
+
+      // 💡 終極資安：直接在您的公開倉庫建立一個特製的交卷 Issue，完全不需要任何 Token！
+      // 標題固定為 [SUBMIT]，方便後台機器人識別
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues`;
       
+      // 這裡完全不帶 Authorization 標頭，GitHub 官方本身就允許公開建立 Issue！
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Accept': 'application/vnd.github.v3+json',
-        },
         body: JSON.stringify({
-          event_type: "student_submit", // 告知傳令兵：有學生交卷了！
-          client_payload: {
-            username: studentId,
-            problem_id: problemId,
-            code: code,
-            submitted_at: new Date().toISOString()
-          }
+          title: `[SUBMIT] ${studentId} - ${problemId}`,
+          body: JSON.stringify(payload, null, 2) // 把交卷內容塞進 Issue 內文
         })
       });
 
-      // 💡 網頁只要成功發射信號就大功告成！
+      // 網頁端建立 Issue 成功後，直接進入排隊等待
       resultCard.className = "card wait";
-      scoreEl.innerHTML = `✅ <b>交卷訊號已發射！</b><br><span style="font-size:16px;">程式碼已透過雲端隊列排隊。<br>後台 Actions 機器人正在排程代筆寫入與批改。<br>請於 30 秒後重新整理網頁查看右側進度！</span>`;
+      scoreEl.innerHTML = `✅ <b>交卷訊號已發射！</b><br><span style="font-size:16px;">程式碼已透過雲端 Issue 安全排隊。<br>後台 Actions 機器人已收到開機信號，正在代筆寫入與批改。<br>請於 30 秒後重新整理網頁查看右側進度！</span>`;
     } catch (e) {
       showError("交卷失敗：" + e.message);
     }

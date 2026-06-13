@@ -1,12 +1,14 @@
 name: Trigger Core Grader Queue
 
-# 聽從指令：當接收到網頁發射過來的 student_submit 訊號時開機
+# 💡 聽從指令：只要有人建立標題是 [SUBMIT] 開頭的 Issue，立刻開機！
 on:
-  repository_dispatch:
-    types: [student_submit]
+  issues:
+    types: [opened]
 
 jobs:
   handle_submission:
+    # 確保只有標題帶有 [SUBMIT] 的 Issue 才會觸發代筆，防止亂入
+    if: startsWith(github.event.issue.title, '[SUBMIT]')
     runs-on: ubuntu-latest
     steps:
       # 1. 移駕到公開端倉庫
@@ -15,26 +17,41 @@ jobs:
         with:
           token: ${{ secrets.CORE_DISPATCH_TOKEN }}
 
-      # 2. 🤖 機器人代筆：將信號內容安全轉為實體 JSON 檔案
-      - name: Create Submission File from Payload
+      # 2. 🤖 機器人代筆：讀取 Issue 的內文，直接在後台實體寫成 JSON 檔案
+      - name: Create Submission File from Issue Body
         run: |
           mkdir -p queue
           TIMESTAMP=$(date +%s)
-          FILENAME="queue/${{ github.event.client_payload.username }}_${{ github.event.client_payload.problem_id }}_${TIMESTAMP}.json"
           
-          # 🧠 利用 GitHub Actions 內建變數直接倒出標準 JSON，絕對不會碎掉
+          # 從 Issue 標題解出學號與題號，建立唯一檔名
+          # 標題格式：[SUBMIT] std01 - p01
+          CLEAN_TITLE=$(echo "${{ github.event.issue.title }}" | sed 's/\[SUBMIT\] //')
+          USER_ID=$(echo "$CLEAN_TITLE" | cut -d'-' -f1 | xargs)
+          PROB_ID=$(echo "$CLEAN_TITLE" | cut -d'-' -f2 | xargs)
+          
+          FILENAME="queue/${USER_ID}_${PROB_ID}_${TIMESTAMP}.json"
+          
+          # 直接把 Issue 內文（原本網頁打包的 JSON）轉存成實體檔案
           cat << 'EOF' > $FILENAME
-          ${{ toJSON(github.event.client_payload) }}
+          ${{ github.event.issue.body }}
           EOF
           
           # 自動提交存檔進 queue/
           git config --global user.name "UnoJudge-Uploader"
           git config --global user.email "uploader@unojudge.local"
           git add $FILENAME
-          git commit -m "system: robotic data upload for ${{ github.event.client_payload.username }}"
+          git commit -m "system: robotic data upload from issue for ${USER_ID}"
           git push origin main
 
-      # 3. 🚀 叫醒私密端的評分大腦開機！
+      # 3. 🔒 隱密銷毀：把這個用來當信號彈的 Issue 自動關閉並鎖定，不留下任何公開痕跡
+      - name: Close and Lock Issue
+        run: |
+          gh issue close ${{ github.event.issue.number }} --repo ${{ github.repository }}
+          gh issue lock ${{ github.event.issue.number }} --repo ${{ github.repository }} --reason "resolved"
+        env:
+          GH_TOKEN: ${{ secrets.CORE_DISPATCH_TOKEN }}
+
+      # 4. 🚀 叫醒私密端的評分大腦開機！
       - name: Notify Private Core Repo to Grade
         run: |
           curl -X POST \
