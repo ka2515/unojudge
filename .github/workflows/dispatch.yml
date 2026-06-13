@@ -17,21 +17,15 @@ jobs:
 
       # 2. 🤖 機器人代筆：將信號內容安全轉為實體 JSON 檔案
       - name: Create Submission File from Payload
-        env:
-          STUDENT_CODE: ${{ github.event.client_payload.code }}
         run: |
           mkdir -p queue
           TIMESTAMP=$(date +%s)
           FILENAME="queue/${{ github.event.client_payload.username }}_${{ github.event.client_payload.problem_id }}_${TIMESTAMP}.json"
           
-          # ✅ 修正：利用環境變數與 jq 工具，打包出絕對不會碎掉的標準 JSON 檔案
-          jq -n \
-            --arg username "${{ github.event.client_payload.username }}" \
-            --arg problem_id "${{ github.event.client_payload.problem_id }}" \
-            --arg code "$STUDENT_CODE" \
-            --arg submitted_at "${{ github.event.client_payload.submitted_at }}" \
-            '{username: $username, problem_id: $problem_id, code: $code, submitted_at: $submitted_at}' \
-            > $FILENAME
+          # 🧠 利用 GitHub Actions 內建變數直接倒出標準 JSON，絕對不會碎掉
+          cat << 'EOF' > $FILENAME
+          ${{ toJSON(github.event.client_payload) }}
+          EOF
           
           # 自動提交存檔進 queue/
           git config --global user.name "UnoJudge-Uploader"
