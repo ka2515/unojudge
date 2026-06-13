@@ -396,79 +396,80 @@
   }
 
   // ===== 🚀 改造後：不找後端，直接從公開的 grades.json 撈出個人進度 =====
-  async function loadMySummary() {
+  async function loadMySummary(username) {
+    clearZones();
     try {
-      const resp = await fetch("grades.json");
-      if (!resp.ok) {
-        sideInfo.textContent = "（無歷史成績紀錄）";
-        clearZones();
-        return;
+      // 1. 讀取歷史成績單
+      let myRecords = {};
+      try {
+        const resp = await fetch("grades.json");
+        if (resp.ok) {
+          const allGrades = await resp.json();
+          myRecords = allGrades[username] || {};
+        }
+      } catch (e) {
+        console.log("尚無 grades.json 檔案，視為未作答狀態");
       }
       
-      const allGrades = await resp.json().catch(() => []);
-      const currentUsername = localStorage.getItem("uno_username") || "";
+      // 2. 讀取題目清單
+      const probResp = await fetch("tests_bank.json");
+      if (!probResp.ok) throw new Error("無法讀取 tests_bank.json");
+      const probData = await probResp.json();
+      const probList = Array.isArray(probData) ? probData : (probData?.problems || []);
       
-      if (!currentUsername) {
-        sideInfo.textContent = "（請先登入）";
-        clearZones();
-        return;
-      }
+      sideInfo.textContent = `題目總數：${probList.length}`;
 
-      const myRecords = allGrades.filter(record => record.username === currentUsername);
-      sideInfo.textContent = `我的作答題目數：${myRecords.length}`;
+      // 預備好所有右側分區
+      const groups = { zone1: [], zone2: [], zone3: [], zone4: [], zone5: [], weekend: [], county: [], national: [] };
 
-      const groups = {
-        zone1: [], zone2: [], zone3: [], zone4: [], zone5: [],
-        weekend: [], county: [], national: []
-      };
+      for (const p of probList) {
+        // 取得該題目的繳交紀錄（若無則為 0）
+        const record = myRecords[p.id];
+        const pass = record ? (record.pass ?? 0) : 0;
+        const total = p.total || (p.tests ? p.tests.length : 0) || 1;
+        const hasSubmit = !!record;
 
-      for (const p of myRecords) {
-        const track = p.track || inferTrackClient(p.problem_id);
-        if (!groups[track]) continue;
-
-        const pass = Number(p.pass ?? 0);
-        const total = Number(p.total ?? 0);
         const pct = pctFloor(pass, total);
-        const cls = colorClassByPct(pct, true);
-        
-        const optEl = problemSelect.querySelector(`option[value="${p.problem_id}"]`);
-        const label = optEl ? shortLabelFromName(optEl.textContent, p.problem_id) : p.problem_id;
+        const cls = hasSubmit ? colorClassByPct(pct) : "";
+        const label = shortLabelFromName(p.name, p.id);
 
+        // 🧠 核心修復：如果 track 不在預設分區內，一律強制塞進 "zone1"（第 1 區），確保絕不漏字！
+        let track = String(p.track || "").trim();
+        if (!groups[track]) {
+          track = inferTrackClient(p.id);
+          if (!groups[track]) track = "zone1"; 
+        }
+
+        // 計算排序權重
         let order = 999999;
-        const m2 = String(p.problem_id || "").match(/^p(\d{2})$/i);
-        if (m2) order = parseInt(m2[1], 10);
+        const m1 = String(label).match(/(\d+)\s*-\s*(\d+)/);
+        if (m1) order = parseInt(m1[1], 10) * 1000 + parseInt(m1[2], 10);
+        else {
+          const m2 = String(p.id || "").match(/^p(\d{2})$/i);
+          if (m2) order = parseInt(m2[1], 10);
+        }
 
-        groups[track].push({ order, html: `<li class="${cls}">${escapeHtml(label)} (${pct}%)</li>` });
+        // 組裝 HTML 顯示字串
+        const displayScore = hasSubmit ? `${pct}%` : "未繳交";
+        groups[track].push({ 
+          order, 
+          html: `<li class="${cls}">${escapeHtml(label)} (${displayScore})</li>` 
+        });
       }
 
-      for (const k of Object.keys(groups)) groups[k].sort((a,b) => a.order - b.order);
+      // 將資料渲染至對應的畫面上
+      Object.keys(groups).forEach(k => {
+        groups[k].sort((a,b) => a.order - b.order);
+        document.getElementById(k).innerHTML = groups[k].map(x => x.html).join("");
+        document.getElementById(k + "Empty").style.display = groups[k].length ? "none" : "block";
+      });
 
-      zone1.innerHTML = groups.zone1.map(x => x.html).join("");
-      zone2.innerHTML = groups.zone2.map(x => x.html).join("");
-      zone3.innerHTML = groups.zone3.map(x => x.html).join("");
-      zone4.innerHTML = groups.zone4.map(x => x.html).join("");
-      zone5.innerHTML = groups.zone5.map(x => x.html).join("");
-      weekend.innerHTML = groups.weekend.map(x => x.html).join("");
-      county.innerHTML = groups.county.map(x => x.html).join("");
-      national.innerHTML = groups.national.map(x => x.html).join("");
-
-      zone1Empty.style.display = groups.zone1.length ? "none" : "block";
-      zone2Empty.style.display = groups.zone2.length ? "none" : "block";
-      zone3Empty.style.display = groups.zone3.length ? "none" : "block";
-      zone4Empty.style.display = groups.zone4.length ? "none" : "block";
-      zone5Empty.style.display = groups.zone5.length ? "none" : "block";
-      weekendEmpty.style.display = groups.weekend.length ? "none" : "block";
-      countyEmpty.style.display = groups.county.length ? "none" : "block";
-      nationalEmpty.style.display = groups.national.length ? "none" : "block";
-
-    } catch (err) {
-      console.error("讀取個人進度失敗:", err);
-      sideInfo.textContent = "（進度載入失敗）";
-      clearZones();
+    } catch(e) {
+      sideInfo.textContent = "載入進度失敗：" + e.message;
     }
   }
 
-// ===== 🚀 終極進化：免金鑰信號交卷流派 =====
+  // ===== 🚀 終極進化：免金鑰信號交卷流派 =====
   async function gradeXml(xmlText) {
     showWait();
     scoreEl.textContent = "⏳ 正在透過安全雲端通道提交中…";
