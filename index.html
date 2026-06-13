@@ -490,7 +490,7 @@
       // 🔗 填入您的免費 GAS 轉傳網址
       const GAS_BRIDGE_URL = "https://script.google.com/macros/s/AKfycbwtmveRuaWPQhnE8vXmNyT5VM3p4bqI123Q_IyTx8Kbm9wCkdsE-LCHZ301kTinkKFY/exec";
 
-      if (GAS_BRIDGE_URL === "https://script.google.com/macros/s/AKfycbwtmveRuaWPQhnE8vXmNyT5VM3p4bqI123Q_IyTx8Kbm9wCkdsE-LCHZ301kTinkKFY/exec" || !GAS_BRIDGE_URL) {
+      if (!GAS_BRIDGE_URL) {
         throw new Error("系統未配置交卷通道網址，請聯繫管理員。");
       }
 
